@@ -1,0 +1,36 @@
+sudo: required
+
+language: scala
+
+services:
+  - docker
+
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt/boot/
+
+before_install:
+  - mkdir -p ${HOME}/.sbt
+  - git clone https://github.com/geotrellis/geotrellis.git /tmp/geotrellis
+  - pushd /tmp/geotrellis
+  - git checkout cb236ac
+  - docker run --rm -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/geotrellis -w /geotrellis quay.io/azavea/scala:latest ./publish-local.sh
+  - popd
+
+script:
+  - /bin/true
+
+before_deploy:
+  - docker run -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/mmw-geoprocessing -w /mmw-geoprocessing quay.io/azavea/scala:latest ./sbt assembly
+
+deploy:
+  provider: releases
+  api_key:
+    secure: Sxt3Tk9CdBUXGO2mHUUPp696aUJMmrREzijJi7dNtLohxqDXhKUaHiLpGQvuHHamYZc8sL+utSNfABQFfUW+F9yx5wkkGX9anJdXsGDPw54Mh//jT9vaMJiCO1gA4l5U7loRLX738fwSGdH/RLPrvMHSwV3eszmrjpsJXFlGQ3ShLsg5SefARohezxg+mYFoWFCQywKKLq04lMdzwE9NooRCI7mr8TaBLSgMfaseCqICImuOm9+wOjbLrQ+/2xrprhszuLUPHNUsmw43UUjDDL9leyFVmk6EatKjZ9f/rqRz44DV72yTW33LOwjpdokgUBJ8yw2vbB4+cwWSx3wMi5m1TntiY5wMZYF0NwrjfucYKLEaa2Xecwi2Ndhtr03vshpK1yTqp44zaAlNzUOQIuuVlWImgP7dOAwVDh6IpcykEWdkLsDkinhZjI6oMwpG50YWleKmdhUZeSWdcSO7+4ZrRgZiedvKdjAvUYTVsVY3Zx4JYYQYRNg+iI959tJ8OWe0Knc+NQ6GqJAd0kkl0AMsI3+gQqu1ngaqdYZLVyfGnK0ezTwr8ZcZ+sDXi3mgphvF1RCdWvyG4K7BdRWmFH3+bCjd69uNcvlZk14YGZXNt3aAydHp+KjqsPMfbhaMYN9W4z81WzJMZ+9n82w3S8C7JRl44nHJ6Lxg7e51UFI=
+  file:
+    - summary/target/scala-2.10/mmw-geoprocessing-assembly-${TRAVIS_TAG}.jar
+  skip_cleanup: true
+  on:
+    repo: WikiWatershed/mmw-geoprocessing
+    tags: true
