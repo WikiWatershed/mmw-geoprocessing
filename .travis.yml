@@ -10,18 +10,11 @@ cache:
     - $HOME/.ivy2/cache
     - $HOME/.sbt/boot/
 
-before_install:
-  - mkdir -p ${HOME}/.sbt
-  - git clone https://github.com/geotrellis/geotrellis.git /tmp/geotrellis
-  - pushd /tmp/geotrellis
-  - git checkout cb236ac
-  - docker run --rm -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/geotrellis -w /geotrellis quay.io/azavea/scala:latest ./publish-local.sh
-  - popd
-
 script:
   - /bin/true
 
 before_deploy:
+  - mkdir -p ${HOME}/.sbt
   - docker run -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/mmw-geoprocessing -w /mmw-geoprocessing quay.io/azavea/scala:latest ./sbt assembly
   - sudo chown ${USER} summary/target/scala-2.10/mmw-geoprocessing-assembly-${TRAVIS_TAG}.jar
 

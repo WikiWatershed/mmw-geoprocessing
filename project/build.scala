@@ -10,7 +10,7 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0-SNAPSHOT"
+  val geotrellis   = "0.10.0-cb236ac"
   val scala        = "2.10.5"
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.5.1")
@@ -50,7 +50,9 @@ object Geoprocessing extends Build {
   )
 
   val resolutionRepos = Seq(
-    "Job Server Bintray" at "https://dl.bintray.com/spark-jobserver/maven"
+    Resolver.bintrayRepo("azavea", "geotrellis"),
+    Resolver.bintrayRepo("scalaz", "releases"),
+    "OpenGeo" at "http://repo.boundlessgeo.com/main"
   )
 
   val defaultAssemblySettings =
