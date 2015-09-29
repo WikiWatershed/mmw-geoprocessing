@@ -5,7 +5,6 @@ import org.apache.spark._
 import org.apache.spark.SparkContext._
 
 import scala.collection.mutable
-// import scala.util.Try
 
 import spark.jobserver._
 
@@ -19,7 +18,6 @@ import geotrellis.raster.histogram._
 import geotrellis.raster.rasterize.{Rasterizer, Callback}
 import geotrellis.spark._
 import geotrellis.spark.io.s3._
-// import geotrellis.spark.op.zonal.summary._
 import geotrellis.vector._
 import geotrellis.vector.io.json._
 
@@ -45,7 +43,6 @@ object SummaryJob extends SparkJob {
       }
     }
 
-    // val startTime = System.currentTimeMillis
     val params = parseConfig(config)
     val extent = getExtent(params.polyMask)
     val nlcdLayer = queryAndCropLayer(catalog(sc), params.nlcdLayerId, extent)
@@ -142,38 +139,6 @@ object SummaryJob extends SparkJob {
   def catalog(sc: SparkContext, bucket: String, rootPath: String): S3RasterCatalog = {
     S3RasterCatalog(bucket, rootPath)(sc)
   }
-
-  // def parsePolygonFeatureCollection(polyMask: String): Seq[Polygon] = {
-  //   try {
-  //     import spray.json.DefaultJsonProtocol._
-  //     val featureColl = polyMask.parseGeoJson[JsonFeatureCollection]
-  //     val polys = featureColl.getAllPolygons union
-  //     featureColl.getAllMultiPolygons.map(_.polygons).flatten
-  //     polys
-  //   } catch {
-  //     case ex: ParsingException =>
-  //       if (!polyMask.isEmpty)
-  //         ex.printStackTrace(Console.err)
-  //       Seq[Polygon]()
-  //   }
-  // }
-
-  // def reprojectPolygons(polys: Seq[Polygon], srid: Int): Seq[Polygon] = {
-  //   srid match {
-  //     case 3857 => polys
-  //     case 4326 => polys.map(_.reproject(LatLng, WebMercator))
-  //     case _ => throw new Exception("SRID not supported.")
-  //   }
-  // }
-
-  // def histogram(rdd: RasterRDD[SpatialKey], multiPolygon: MultiPolygon): Histogram = {
-  //     val histograms: Seq[Histogram] = multiPolygon.polygons map {
-  //       p => {
-  //         rdd.zonalHistogram(p)
-  //       }
-  //     }
-  //     FastMapHistogram.fromHistograms(histograms)
-  // }
 
   def histogram(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mp: MultiPolygon): Map[(Int, Int), Int] = {
 
