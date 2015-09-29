@@ -21,7 +21,7 @@ import geotrellis.spark.io.s3._
 import geotrellis.vector._
 import geotrellis.vector.io.json._
 
-case class SummaryJobParams(nlcdLayerId: LayerId, soilLayerId: LayerId, polyMask: Seq[MultiPolygon])
+case class SummaryJobParams(nlcdLayerId: LayerId, soilLayerId: LayerId, geometry: Seq[MultiPolygon])
 
 object SummaryJob extends SparkJob {
 
@@ -34,23 +34,12 @@ object SummaryJob extends SparkJob {
   }
 
   override def runJob(sc: SparkContext, config: Config): Any = {
-
-    def getExtent(geometry: Geometry) : Extent = {
-      geometry match {
-        case p: Polygon => p.envelope
-        case mp: MultiPolygon => mp.envelope
-        case gc: GeometryCollection => gc.envelope
-      }
-    }
-
     val params = parseConfig(config)
-    val extent = getExtent(params.polyMask)
+    val extent = GeometryCollection(params.geometry).envelope
     val nlcdLayer = queryAndCropLayer(catalog(sc), params.nlcdLayerId, extent)
     val soilLayer = queryAndCropLayer(catalog(sc), params.soilLayerId, extent)
 
-    params.polyMask.map {
-      mp => histogram(nlcdLayer, soilLayer, mp)
-    }
+    histograms(nlcdLayer, soilLayer, params.geometry)
   }
 
   /*
@@ -140,16 +129,18 @@ object SummaryJob extends SparkJob {
     S3RasterCatalog(bucket, rootPath)(sc)
   }
 
-  def histogram(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mp: MultiPolygon): Map[(Int, Int), Int] = {
+  def histograms(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mps: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
 
     val mapTransform = nlcd.metaData.mapTransform
     val joinedRasters = nlcd.join(soil)
-    val histogram = joinedRasters
-      .map { case (key, (nlcdTile, soilTile)) =>
+    val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
+      mps.map { mp =>
         val extent = mapTransform(key) // transform spatial key to map extent
         val rasterExtent = RasterExtent(extent, nlcdTile.cols, nlcdTile.rows) // transform extent to raster extent
         val clipped = mp & extent
         val localHistogram = mutable.Map[(Int, Int), Int]()
+
+        // localHistogram((-1,-1)) = -1
 
         def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
           ps.map { p =>
@@ -174,14 +165,16 @@ object SummaryJob extends SparkJob {
         }
 
         localHistogram.toMap
+      }
     }
 
-    histogram
-      .reduce { (m1, m2) =>
-      (m1.toSeq ++ m2.toSeq)
-        .groupBy(_._1)
-        .map { case (key, counts) => (key, counts.map(_._2).sum) }
-        .toMap
+    histogramParts.reduce { (s1, s2) =>
+      (s1 zip s2).map { t =>
+        (t._1.toSeq ++ t._2.toSeq)
+          .groupBy(_._1)
+          .map { case (key, counts) => (key, counts.map(_._2).sum) }
+          .toMap
+      }
     }
   }
 }
