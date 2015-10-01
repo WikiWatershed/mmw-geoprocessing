@@ -75,3 +75,18 @@ $ curl --silent \
     --data-binary @examples/request.json \
     'http://localhost:8090/jobs?sync=true&context=geoprocessing-context&appName=geoprocessing&classPath=org.wikiwatershed.mmw.geoprocessing.SummaryJob'
 ```
+
+## Deployments
+
+Deployments to GitHub Releases are handled through [Travis-CI](https://travis-ci.org/WikiWatershed/mmw-geoprocessing). The following `git-flow` commands signal to Travis that we want to create a release:
+
+``` bash
+$ git flow release start 0.1.0
+$ vim CHANGELOG.md
+$ vim project/build.scala
+$ git commit -m "0.1.0"
+$ git flow release publish 0.1.0
+$ git flow release finish 0.1.0
+```
+
+To actually kick off the deployment, ensure that the newly created Git tags are pushed remotely with `git push --tags`.
