@@ -52,7 +52,7 @@ object Geoprocessing extends Build {
   val resolutionRepos = Seq(
     Resolver.bintrayRepo("azavea", "geotrellis"),
     Resolver.bintrayRepo("scalaz", "releases"),
-    "OpenGeo" at "http://repo.boundlessgeo.com/main"
+    "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main"
   )
 
   val defaultAssemblySettings =
