@@ -147,7 +147,10 @@ object SummaryJob extends SparkJob {
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
                   val nlcdType = nlcdTile.get(col,row)
-                  val soilType = soilTile.get(col,row)
+                  val soilType = soilTile.get(col,row) match {
+                    case -2147483648 => 2
+                    case n : Int => n
+                  }
                   val pair = (nlcdType, soilType)
                   if(!localHistogram.contains(pair)) { localHistogram(pair) = 0 }
                   localHistogram(pair) += 1
