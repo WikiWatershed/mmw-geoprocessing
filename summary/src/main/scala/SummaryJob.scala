@@ -4,22 +4,13 @@ import com.typesafe.config.Config
 import org.apache.spark._
 import org.apache.spark.SparkContext._
 
-import scala.collection.mutable
-
 import spark.jobserver._
 
-import spray.json._
-import spray.json.DefaultJsonProtocol._
-import spray.json.JsonParser.ParsingException
-
-import geotrellis.proj4._
 import geotrellis.raster._
-import geotrellis.raster.histogram._
-import geotrellis.raster.rasterize.{Rasterizer, Callback}
 import geotrellis.spark._
 import geotrellis.spark.io.s3._
+import geotrellis.spark.io.avro.codecs._
 import geotrellis.vector._
-import geotrellis.vector.io.json._
 
 case class SummaryJobParams(nlcdLayerId: LayerId, soilLayerId: LayerId, geometry: Seq[MultiPolygon])
 
@@ -47,6 +38,7 @@ object SummaryJob extends SparkJob {
    */
   def parseConfig(config: Config): SummaryJobParams = {
     import scala.collection.JavaConverters._
+    import geotrellis.proj4._
 
     def getOptional(key : String) : Option[String] = {
       config.hasPath(key) match {
@@ -60,10 +52,14 @@ object SummaryJob extends SparkJob {
     val soilLayer = LayerId(config.getString("input.soilLayer"), zoom)
     val tileCRS = getOptional("input.tileCRS") match {
       case Some("LatLng") => LatLng
-      case _ => WebMercator
+      case Some("WebMercator") => WebMercator
+      case Some("ConusAlbers") => ConusAlbers
+      case _ => ConusAlbers
     }
     val polyCRS = getOptional("input.polyCRS") match {
+      case Some("LatLng") => LatLng
       case Some("WebMercator") => WebMercator
+      case Some("ConusAlbers") => ConusAlbers
       case _ => LatLng
     }
     val geometry = config.getStringList("input.geometry").asScala.map {
@@ -78,6 +74,8 @@ object SummaryJob extends SparkJob {
    * in the destination CRS.
    */
   def parseGeometry(geoJson: String, srcCRS: geotrellis.proj4.CRS, destCRS: geotrellis.proj4.CRS) : MultiPolygon = {
+    import spray.json._
+    import geotrellis.vector.io.json._
     import geotrellis.vector.reproject._
 
     geoJson.parseJson.convertTo[Geometry] match {
@@ -91,45 +89,48 @@ object SummaryJob extends SparkJob {
    * Fetch a particular layer from the catalogue, restricted to the
    * given extent, and return a RasterRDD of the result.
    */
-  def queryAndCropLayer(catalog: S3RasterCatalog, layerId: LayerId, extent: Extent): RasterRDD[SpatialKey] = {
+  def queryAndCropLayer(catalog : S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]], layerId: LayerId, extent: Extent): RasterRDD[SpatialKey] = {
     import geotrellis.spark.op.local._
+    import geotrellis.spark.io.Intersects
 
-    layerId match {
-      // If the user asked for fake soil data, then some special steps
-      // must be taken to synthesize that from nlcd-wm-ext-tms layer.
-      case LayerId("soil-fake", zoom) => {
-        val newLayerId = LayerId("nlcd-wm-ext-tms", zoom)
-        var z : Int = 0
-        catalog.query[SpatialKey](newLayerId)
-          .where(Intersects(extent))
-          .toRDD
-          .localMap { y: Int => {
-            val a = 8121
-            val c = 28411
-            val m = 134456
-            z = ((a * (z + y) * (z + y) + c) % m)
-            (Math.abs(z) % 4) + 1
-          }
-        }
-      }
+      layerId match {
+    //   // If the user asked for fake soil data, then some special steps
+    //   // must be taken to synthesize that from nlcd-wm-ext-tms layer.
+    //   case LayerId("soil-fake", zoom) => {
+    //     val newLayerId = LayerId("nlcd-wm-ext-tms", zoom)
+    //     var z : Int = 0
+    //     catalog.query[SpatialKey](newLayerId)
+    //       .where(Intersects(extent))
+    //       .toRDD
+    //       .localMap { y: Int => {
+    //         val a = 8121
+    //         val c = 28411
+    //         val m = 134456
+    //         z = ((a * (z + y) * (z + y) + c) % m)
+    //         (Math.abs(z) % 4) + 1
+    //       }
+    //     }
+    //   }
       // If the user asked for anything else, give them exactly what they asked for.
       case layerId : LayerId => {
-        catalog.query[SpatialKey](layerId)
+        catalog.query(layerId)
           .where(Intersects(extent))
           .toRDD
       }
     }
   }
 
-  def catalog(sc: SparkContext): S3RasterCatalog = {
-    catalog(sc, "com.azavea.datahub", "catalog")
+  def catalog(sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]] = {
+    catalog("azavea-datahub", "catalog")(sc)
   }
 
-  def catalog(sc: SparkContext, bucket: String, rootPath: String): S3RasterCatalog = {
-    S3RasterCatalog(bucket, rootPath)(sc)
+  def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]] = {
+    S3LayerReader[SpatialKey, Tile, RasterRDD]("azavea-datahub", "catalog", None)
   }
 
   def histograms(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mps: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
+    import scala.collection.mutable
+    import geotrellis.raster.rasterize.{Rasterizer, Callback}
 
     val mapTransform = nlcd.metaData.mapTransform
     val joinedRasters = nlcd.join(soil)
@@ -140,15 +141,16 @@ object SummaryJob extends SparkJob {
         val clipped = mp & extent
         val localHistogram = mutable.Map[(Int, Int), Int]()
 
-        // localHistogram((-1,-1)) = -1
-
         def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
           ps.map { p =>
             Rasterizer.foreachCellByPolygon(p, rasterExtent)(
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
                   val nlcdType = nlcdTile.get(col,row)
-                  val soilType = soilTile.get(col,row)
+                  val soilType = soilTile.get(col,row) match {
+                    case -2147483648 => 2
+                    case n : Int => n
+                  }
                   val pair = (nlcdType, soilType)
                   if(!localHistogram.contains(pair)) { localHistogram(pair) = 0 }
                   localHistogram(pair) += 1
