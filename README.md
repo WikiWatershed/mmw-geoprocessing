@@ -4,27 +4,7 @@ A [Spark Job Server](https://github.com/spark-jobserver/spark-jobserver) job for
 
 ## Usage
 
-First, publish `cb236ac` of the [GeoTrellis](https://github.com/geotrellis/geotrellis) project locally:
-
-```bash
-$ git clone https://github.com/geotrellis/geotrellis.git
-$ cd geotrellis
-$ git checkout cb236ac
-$ ./publish-local.sh
-```
-
-To use a Docker based Scala build environment, you can use the `azavea/scala` container image:
-
-```bash
-$ docker run \
-    --rm \
-    --volume ${HOME}/.ivy2:/root/.ivy2 \
-    --volume ${PWD}:/geotrellis \
-    --workdir /geotrellis \
-    quay.io/azavea/scala:latest ./publish-local.sh
-```
-
-From there, build the assembly JAR for this project:
+First, build the assembly JAR for this project:
 
 ```bash
 $ git clone https://github.com/WikiWatershed/mmw-geoprocessing.git
@@ -32,7 +12,7 @@ $ cd mmw-geoprocessing
 $ ./sbt assembly
 ```
 
-Again, to use a Docker based Scala build environment, you can use:
+To use a Docker based Scala build environment, you can use:
 
 ```bash
 $ docker run \
