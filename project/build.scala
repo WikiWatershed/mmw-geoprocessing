@@ -10,7 +10,7 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0-cb236ac"
+  val geotrellis   = "0.10.0-97834e6"
   val scala        = "2.10.5"
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.5.1")
@@ -24,7 +24,7 @@ object Geoprocessing extends Build {
     super.settings ++
   Seq(
     shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
-    version := "0.2.0",
+    version := "0.3.1",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
 
@@ -52,7 +52,7 @@ object Geoprocessing extends Build {
   val resolutionRepos = Seq(
     Resolver.bintrayRepo("azavea", "geotrellis"),
     Resolver.bintrayRepo("scalaz", "releases"),
-    "OpenGeo" at "http://repo.boundlessgeo.com/main"
+    "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main"
   )
 
   val defaultAssemblySettings =
