@@ -1,3 +1,7 @@
+## 0.3.2
+
+- Make soil type 'C', instead of 'B', the default value when data is missing.
+
 ## 0.3.1
 
 - Functionally equivalent to `0.3.0`. Version bump was to deal with
