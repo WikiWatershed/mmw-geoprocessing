@@ -94,23 +94,6 @@ object SummaryJob extends SparkJob {
     import geotrellis.spark.io.Intersects
 
       layerId match {
-    //   // If the user asked for fake soil data, then some special steps
-    //   // must be taken to synthesize that from nlcd-wm-ext-tms layer.
-    //   case LayerId("soil-fake", zoom) => {
-    //     val newLayerId = LayerId("nlcd-wm-ext-tms", zoom)
-    //     var z : Int = 0
-    //     catalog.query[SpatialKey](newLayerId)
-    //       .where(Intersects(extent))
-    //       .toRDD
-    //       .localMap { y: Int => {
-    //         val a = 8121
-    //         val c = 28411
-    //         val m = 134456
-    //         z = ((a * (z + y) * (z + y) + c) % m)
-    //         (Math.abs(z) % 4) + 1
-    //       }
-    //     }
-    //   }
       // If the user asked for anything else, give them exactly what they asked for.
       case layerId : LayerId => {
         catalog.query(layerId)
@@ -148,7 +131,7 @@ object SummaryJob extends SparkJob {
                 def apply(col: Int, row: Int): Unit = {
                   val nlcdType = nlcdTile.get(col,row)
                   val soilType = soilTile.get(col,row) match {
-                    case -2147483648 => 2
+                    case -2147483648 => 3
                     case n : Int => n
                   }
                   val pair = (nlcdType, soilType)
