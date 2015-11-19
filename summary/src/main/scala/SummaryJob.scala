@@ -148,7 +148,7 @@ object SummaryJob extends SparkJob {
                 def apply(col: Int, row: Int): Unit = {
                   val nlcdType = nlcdTile.get(col,row)
                   val soilType = soilTile.get(col,row) match {
-                    case -2147483648 => 2
+                    case -2147483648 => 3
                     case n : Int => n
                   }
                   val pair = (nlcdType, soilType)
