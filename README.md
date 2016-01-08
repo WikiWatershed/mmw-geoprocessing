@@ -20,7 +20,7 @@ $ docker run \
     --volume ${HOME}/.ivy2:/root/.ivy2 \
     --volume ${PWD}:/mmw-geoprocessing \
     --workdir /mmw-geoprocessing \
-    quay.io/azavea/scala:latest ./sbt assembly
+    quay.io/azavea/scala:2.10.5 ./sbt assembly
 ```
 
 Next, use the latest Spark Job Server (SJS) Docker image to launch an instance of SJS locally:
@@ -33,7 +33,7 @@ $ docker run \
     --volume ${PWD}/examples/conf/spark-jobserver.conf:/opt/spark-jobserver/spark-jobserver.conf:ro \
     --publish 8090:8090 \
     --name spark-jobserver \
-    quay.io/azavea/spark-jobserver:latest
+    quay.io/azavea/spark-jobserver:0.6.1
 ```
 
 **Note**: Ensure that the `default` credentials in your `$HOME/.aws/credentials` file is set with the appropriate AWS API keys. Otherwise, you may have to set the `AWS_PROFILE` environment variable to your custom credential profile.
