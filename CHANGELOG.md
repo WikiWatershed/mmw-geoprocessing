@@ -1,3 +1,8 @@
+## 0.4.0
+
+- Update GeoTrellis dependency to `0.10.0-177004b`.
+- Update default Spark (`1.5.2`) and Spark Job Server (`0.6.1`) dependencies.
+
 ## 0.3.2
 
 - Make soil type 'C', instead of 'B', the default value when data is missing.
