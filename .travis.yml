@@ -15,7 +15,7 @@ script:
 
 before_deploy:
   - mkdir -p ${HOME}/.sbt
-  - docker run -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/mmw-geoprocessing -w /mmw-geoprocessing quay.io/azavea/scala:latest ./sbt assembly
+  - docker run -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/mmw-geoprocessing -w /mmw-geoprocessing quay.io/azavea/scala:2.10.5 ./sbt assembly
   - sudo chown ${USER} summary/target/scala-2.10/mmw-geoprocessing-assembly-${TRAVIS_TAG}.jar
 
 deploy:
