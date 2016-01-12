@@ -10,6 +10,7 @@ import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.spark.io.s3._
 import geotrellis.spark.io.avro.codecs._
+import geotrellis.spark.io.json._
 import geotrellis.vector._
 
 case class SummaryJobParams(nlcdLayerId: LayerId, soilLayerId: LayerId, geometry: Seq[MultiPolygon])
@@ -89,12 +90,11 @@ object SummaryJob extends SparkJob {
    * Fetch a particular layer from the catalogue, restricted to the
    * given extent, and return a RasterRDD of the result.
    */
-  def queryAndCropLayer(catalog : S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]], layerId: LayerId, extent: Extent): RasterRDD[SpatialKey] = {
+  def queryAndCropLayer(catalog : S3LayerReader[SpatialKey, Tile, RasterMetaData], layerId: LayerId, extent: Extent): RasterRDD[SpatialKey] = {
     import geotrellis.spark.op.local._
     import geotrellis.spark.io.Intersects
 
       layerId match {
-      // If the user asked for anything else, give them exactly what they asked for.
       case layerId : LayerId => {
         catalog.query(layerId)
           .where(Intersects(extent))
@@ -103,12 +103,14 @@ object SummaryJob extends SparkJob {
     }
   }
 
-  def catalog(sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]] = {
+  def catalog(sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterMetaData] =
     catalog("azavea-datahub", "catalog")(sc)
-  }
 
-  def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterRDD[SpatialKey]] = {
-    S3LayerReader[SpatialKey, Tile, RasterRDD]("azavea-datahub", "catalog", None)
+  def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterMetaData] = {
+    val attributeStore = new S3AttributeStore("azavea-datahub", "catalog")
+    val rddReader = new S3RDDReader[SpatialKey, Tile]()
+    val catalog = new S3LayerReader[SpatialKey, Tile, RasterMetaData](attributeStore, rddReader, None)
+    catalog
   }
 
   def histograms(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mps: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
@@ -119,10 +121,10 @@ object SummaryJob extends SparkJob {
     val joinedRasters = nlcd.join(soil)
     val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
       mps.map { mp =>
-        val extent = mapTransform(key) // transform spatial key to map extent
+        val extent = mapTransform(key) // transform spatial key to extent
         val rasterExtent = RasterExtent(extent, nlcdTile.cols, nlcdTile.rows) // transform extent to raster extent
         val clipped = mp & extent
-        val localHistogram = mutable.Map[(Int, Int), Int]()
+        val localHistogram = mutable.Map.empty[(Int, Int), Int]
 
         def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
           ps.map { p =>
@@ -131,7 +133,7 @@ object SummaryJob extends SparkJob {
                 def apply(col: Int, row: Int): Unit = {
                   val nlcdType = nlcdTile.get(col,row)
                   val soilType = soilTile.get(col,row) match {
-                    case -2147483648 => 3
+                    case NODATA => 3
                     case n : Int => n
                   }
                   val pair = (nlcdType, soilType)

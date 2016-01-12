@@ -10,12 +10,12 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0-97834e6"
-  val scala        = "2.10.5"
+  val geotrellis   = "0.10.0-177004b"
+  val scala        = either("SCALA_VERSION", "2.10.5")
   val scalatest    = "2.2.1"
-  lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.5.1")
+  lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
   lazy val hadoop  = either("SPARK_HADOOP_VERSION", "2.6.0")
-  lazy val spark   = either("SPARK_VERSION", "1.3.1")
+  lazy val spark   = either("SPARK_VERSION", "1.5.2")
 }
 
 object Geoprocessing extends Build {
@@ -24,7 +24,7 @@ object Geoprocessing extends Build {
     super.settings ++
   Seq(
     shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
-    version := "0.3.2",
+    version := "0.4.0",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
 
