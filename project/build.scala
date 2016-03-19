@@ -10,8 +10,8 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0-177004b"
-  val scala        = either("SCALA_VERSION", "2.10.5")
+  val geotrellis   = "0.10.0-RC1"
+  val scala        = either("SCALA_VERSION", "2.10.6")
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
   lazy val hadoop  = either("SPARK_HADOOP_VERSION", "2.6.0")
@@ -50,7 +50,6 @@ object Geoprocessing extends Build {
   )
 
   val resolutionRepos = Seq(
-    Resolver.bintrayRepo("azavea", "geotrellis"),
     Resolver.bintrayRepo("scalaz", "releases"),
     "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main"
   )
@@ -90,11 +89,8 @@ object Geoprocessing extends Build {
       javaOptions += "-Djava.library.path=/usr/local/lib",
 
       libraryDependencies ++= Seq(
-        "com.azavea.geotrellis" %% "geotrellis-engine" % Version.geotrellis,
-        "com.azavea.geotrellis" %% "geotrellis-services" % Version.geotrellis,
         "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
-        "com.azavea.geotrellis" %% "geotrellis-testkit" % Version.geotrellis % "test",
-        "org.scalatest" %% "scalatest" % Version.scalatest % "test",
+        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
         "org.apache.spark" %% "spark-core" % Version.spark % "provided",
         "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
         "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
