@@ -2,7 +2,6 @@ package org.wikiwatershed.mmw.geoprocessing
 
 import geotrellis.raster._
 import geotrellis.spark._
-import geotrellis.spark.io.avro.codecs._
 import geotrellis.spark.io._
 import geotrellis.spark.io.s3._
 import geotrellis.vector._
@@ -10,7 +9,6 @@ import geotrellis.vector.io._
 
 import com.typesafe.config.Config
 import org.apache.spark._
-import org.apache.spark.SparkContext._
 import spark.jobserver._
 
 
@@ -91,8 +89,6 @@ object SummaryJob extends SparkJob {
     */
   def parseGeometry(geoJson: String, srcCRS: geotrellis.proj4.CRS, destCRS: geotrellis.proj4.CRS) : MultiPolygon = {
     import spray.json._
-    import geotrellis.vector.io.json._
-    import geotrellis.vector.reproject._
 
     geoJson.parseJson.convertTo[Geometry] match {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
@@ -111,8 +107,6 @@ object SummaryJob extends SparkJob {
     * @return           An RDD of [[SpatialKey]]s
     */
   def queryAndCropLayer(catalog : S3LayerReader, layerId: LayerId, extent: Extent): TileLayerRDD[SpatialKey] = {
-    import geotrellis.spark.mapalgebra.local._
-
       layerId match {
       case layerId : LayerId => {
         catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
