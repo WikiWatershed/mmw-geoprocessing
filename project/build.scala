@@ -10,7 +10,7 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0-RC1"
+  val geotrellis   = "0.10.0-RC2"
   val scala        = either("SCALA_VERSION", "2.10.6")
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
