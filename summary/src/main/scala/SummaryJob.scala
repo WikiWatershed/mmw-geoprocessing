@@ -107,13 +107,9 @@ object SummaryJob extends SparkJob {
     * @return           An RDD of [[SpatialKey]]s
     */
   def queryAndCropLayer(catalog : S3LayerReader, layerId: LayerId, extent: Extent): TileLayerRDD[SpatialKey] = {
-      layerId match {
-      case layerId : LayerId => {
-        catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
-          .where(Intersects(extent))
-          .result
-      }
-    }
+      catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
+        .where(Intersects(extent))
+        .result
   }
 
   /**
@@ -129,9 +125,9 @@ object SummaryJob extends SparkJob {
     * Take a bucket and a catalog, and return an [[S3LayerReader]]
     * object to read from it.
     *
-    * @param   bucket   The name of the S3 bucket
-    * @param   catalog  The name of the catalog (child of the root directory) in the bucket
-    * @return           An S3LayerReader object
+    * @param   bucket    The name of the S3 bucket
+    * @param   rootPath  The name of the catalog (child of the root directory) in the bucket
+    * @return            An S3LayerReader object
     */
   def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader = {
     val attributeStore = new S3AttributeStore(bucket, rootPath)
@@ -159,17 +155,16 @@ object SummaryJob extends SparkJob {
     import scala.collection.mutable
     import geotrellis.raster.rasterize.{Rasterizer, Callback}
 
-    val mapTransform = nlcd.metadata.mapTransform
     val joinedRasters = nlcd.join(soil)
     val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
       multiPolygons.map { multiPolygon =>
-        val extent = mapTransform(key) // transform spatial key to extent
+        val extent = nlcd.metadata.mapTransform(key) // transform spatial key to extent
         val rasterExtent = RasterExtent(extent, nlcdTile.cols, nlcdTile.rows) // transform extent to raster extent
         val clipped = multiPolygon & extent
         val localHistogram = mutable.Map.empty[(Int, Int), Int]
 
         def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
-          ps.map { p =>
+          ps.foreach { p =>
             Rasterizer.foreachCellByPolygon(p, rasterExtent)(
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
@@ -198,11 +193,10 @@ object SummaryJob extends SparkJob {
     }
 
     histogramParts.reduce { (s1, s2) =>
-      (s1 zip s2).map { t =>
-        (t._1.toSeq ++ t._2.toSeq)
+      (s1 zip s2).map { case (left, right) =>
+        (left.toSeq ++ right.toSeq)
           .groupBy(_._1)
-          .map { case (key, counts) => (key, counts.map(_._2).sum) }
-          .toMap
+          .map { case (nlcdSoilPair, counts) => (nlcdSoilPair, counts.map(_._2).sum) }
       }
     }
   }
