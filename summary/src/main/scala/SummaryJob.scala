@@ -1,20 +1,25 @@
 package org.wikiwatershed.mmw.geoprocessing
 
-import com.typesafe.config.Config
-import org.apache.spark._
-import org.apache.spark.SparkContext._
-
-import spark.jobserver._
-
 import geotrellis.raster._
 import geotrellis.spark._
+import geotrellis.spark.io._
 import geotrellis.spark.io.s3._
-import geotrellis.spark.io.avro.codecs._
-import geotrellis.spark.io.json._
 import geotrellis.vector._
+import geotrellis.vector.io._
 
+import com.typesafe.config.Config
+import org.apache.spark._
+import spark.jobserver._
+
+
+/**
+  * Convenience class for passing around summary job parameters.
+  */
 case class SummaryJobParams(nlcdLayerId: LayerId, soilLayerId: LayerId, geometry: Seq[MultiPolygon])
 
+/**
+  * The "main" object for this module.
+  */
 object SummaryJob extends SparkJob {
 
   override def validate(sc: SparkContext, config: Config): SparkJobValidation = {
@@ -34,9 +39,12 @@ object SummaryJob extends SparkJob {
     histograms(nlcdLayer, soilLayer, params.geometry)
   }
 
-  /*
-   * Parse the incoming configuration.
-   */
+  /**
+    * Parse the incoming configuration.
+    *
+    * @param  config  The configuration to parse
+    * @return         The NLCD layer, SOIL layer, and query polygon
+    */
   def parseConfig(config: Config): SummaryJobParams = {
     import scala.collection.JavaConverters._
     import geotrellis.proj4._
@@ -70,14 +78,17 @@ object SummaryJob extends SparkJob {
     SummaryJobParams(nlcdLayer, soilLayer, geometry)
   }
 
-  /*
-   * Transform the incoming GeoJSON into a sequence of MultiPolygons
-   * in the destination CRS.
-   */
+  /**
+    * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
+    * destination CRS.
+    *
+    * @param   geoJson  The incoming geometry
+    * @param   srcCRS   The CRS that the incoming geometry is in
+    * @param   destCRS  The CRS that the outgoing geometry should be in
+    * @return           A MultiPolygon
+    */
   def parseGeometry(geoJson: String, srcCRS: geotrellis.proj4.CRS, destCRS: geotrellis.proj4.CRS) : MultiPolygon = {
     import spray.json._
-    import geotrellis.vector.io.json._
-    import geotrellis.vector.reproject._
 
     geoJson.parseJson.convertTo[Geometry] match {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
@@ -86,48 +97,74 @@ object SummaryJob extends SparkJob {
     }
   }
 
-  /*
-   * Fetch a particular layer from the catalogue, restricted to the
-   * given extent, and return a RasterRDD of the result.
-   */
-  def queryAndCropLayer(catalog : S3LayerReader[SpatialKey, Tile, RasterMetaData], layerId: LayerId, extent: Extent): RasterRDD[SpatialKey] = {
-    import geotrellis.spark.op.local._
-    import geotrellis.spark.io.Intersects
-
-      layerId match {
-      case layerId : LayerId => {
-        catalog.query(layerId)
-          .where(Intersects(extent))
-          .toRDD
-      }
-    }
+  /**
+    * Fetch a particular layer from the catalog, restricted to the
+    * given extent, and return a [[TileLayerRDD]] of the result.
+    *
+    * @param   catalog  The S3 location from which the data should be read
+    * @param   layerId  The layer that should be read
+    * @param   extent   The extent (subset) of the layer that should be read
+    * @return           An RDD of [[SpatialKey]]s
+    */
+  def queryAndCropLayer(catalog : S3LayerReader, layerId: LayerId, extent: Extent): TileLayerRDD[SpatialKey] = {
+      catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
+        .where(Intersects(extent))
+        .result
   }
 
-  def catalog(sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterMetaData] =
+  /**
+    * Return an [[S3LayerReader]] object to read from the catalog
+    * directory in the azavea datahub.
+    *
+    * @return  An S3LayerReader object
+    */
+  def catalog(sc: SparkContext): S3LayerReader =
     catalog("azavea-datahub", "catalog")(sc)
 
-  def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader[SpatialKey, Tile, RasterMetaData] = {
-    val attributeStore = new S3AttributeStore("azavea-datahub", "catalog")
-    val rddReader = new S3RDDReader[SpatialKey, Tile]()
-    val catalog = new S3LayerReader[SpatialKey, Tile, RasterMetaData](attributeStore, rddReader, None)
+  /**
+    * Take a bucket and a catalog, and return an [[S3LayerReader]]
+    * object to read from it.
+    *
+    * @param   bucket    The name of the S3 bucket
+    * @param   rootPath  The name of the catalog (child of the root directory) in the bucket
+    * @return            An S3LayerReader object
+    */
+  def catalog(bucket: String, rootPath: String)(implicit sc: SparkContext): S3LayerReader = {
+    val attributeStore = new S3AttributeStore(bucket, rootPath)
+    val catalog = new S3LayerReader(attributeStore)
+
     catalog
   }
 
-  def histograms(nlcd: RasterRDD[SpatialKey], soil: RasterRDD[SpatialKey], mps: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
+  /**
+    * Compute the histogram of the intersection of a pair of layers
+    * with the query polygon list, and report it as a list of maps
+    * from (Int, Int) to Int.
+    *
+    * By "pair of layers" what we mean is that the two layers are
+    * essentially overlayed, and the histogram is taken over pairs of
+    * values (where one value comes from the first layer, and the
+    * other value from the second layer).
+    *
+    * @param   nlcd           The first layer
+    * @param   soil           The second layer
+    * @param   multiPolygons  The query polygons
+    * @return                 The histograms for the respective query polygons
+    */
+  def histograms(nlcd: TileLayerRDD[SpatialKey], soil: TileLayerRDD[SpatialKey], multiPolygons: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
     import scala.collection.mutable
     import geotrellis.raster.rasterize.{Rasterizer, Callback}
 
-    val mapTransform = nlcd.metaData.mapTransform
     val joinedRasters = nlcd.join(soil)
     val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
-      mps.map { mp =>
-        val extent = mapTransform(key) // transform spatial key to extent
+      multiPolygons.map { multiPolygon =>
+        val extent = nlcd.metadata.mapTransform(key) // transform spatial key to extent
         val rasterExtent = RasterExtent(extent, nlcdTile.cols, nlcdTile.rows) // transform extent to raster extent
-        val clipped = mp & extent
+        val clipped = multiPolygon & extent
         val localHistogram = mutable.Map.empty[(Int, Int), Int]
 
         def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
-          ps.map { p =>
+          ps.foreach { p =>
             Rasterizer.foreachCellByPolygon(p, rasterExtent)(
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
@@ -146,8 +183,8 @@ object SummaryJob extends SparkJob {
         }
 
         clipped match {
-          case PolygonResult(p) => intersectionComponentsToHistogram(List(p))
-          case MultiPolygonResult(mp) => intersectionComponentsToHistogram(mp.polygons)
+          case PolygonResult(polygon) => intersectionComponentsToHistogram(List(polygon))
+          case MultiPolygonResult(multiPolygon) => intersectionComponentsToHistogram(multiPolygon.polygons)
           case _ =>
         }
 
@@ -156,11 +193,10 @@ object SummaryJob extends SparkJob {
     }
 
     histogramParts.reduce { (s1, s2) =>
-      (s1 zip s2).map { t =>
-        (t._1.toSeq ++ t._2.toSeq)
+      (s1 zip s2).map { case (left, right) =>
+        (left.toSeq ++ right.toSeq)
           .groupBy(_._1)
-          .map { case (key, counts) => (key, counts.map(_._2).sum) }
-          .toMap
+          .map { case (nlcdSoilPair, counts) => (nlcdSoilPair, counts.map(_._2).sum) }
       }
     }
   }
