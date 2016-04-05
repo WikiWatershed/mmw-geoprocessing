@@ -32,6 +32,8 @@ object MapshedJob extends SparkJob {
     val params = parseConfig(config)
     val extent = GeometryCollection(params.geometry).envelope
     val nlcdLayer = queryAndCropLayer(catalog(sc), params.nlcdLayerId, extent)
+
+    histogram(nlcdLayer, params.geometry)
   }
 
   def parseConfig(config: Config): MapshedJobParams = {
@@ -90,5 +92,51 @@ object MapshedJob extends SparkJob {
     val catalog = new S3LayerReader(attributeStore)
 
     catalog
+  }
+
+  def histogram(layer: TileLayerRDD[SpatialKey], multiPolygons: Seq[MultiPolygon]) = {
+    import scala.collection.mutable
+    import geotrellis.raster.rasterize._
+
+    val histogramParts = layer.map { case (key, tile) =>
+      multiPolygons.map { multiPolygon =>
+        val extent = layer.metadata.mapTransform(key) // transform spatial key to extent
+        val rasterExtent = RasterExtent(extent, tile.cols, tile.rows) // transform extent to raster extent
+        val clipped = multiPolygon & extent
+        val localHistogram = mutable.Map.empty[Int, Int]
+
+        def intersectionComponentsToHistogram(ps: Seq[Polygon]) = {
+          ps.foreach { p =>
+            Rasterizer.foreachCellByPolygon(p, rasterExtent)(
+              new Callback {
+                def apply(col: Int, row: Int): Unit = {
+                  val nlcdType = tile.get(col, row)
+
+                  if (!localHistogram.contains(nlcdType)) { localHistogram(nlcdType) = 0 }
+
+                  localHistogram(nlcdType) += 1
+                }
+              }
+            )
+          }
+        }
+
+        clipped match {
+          case PolygonResult(p) => intersectionComponentsToHistogram(List(p))
+          case MultiPolygonResult(mp) => intersectionComponentsToHistogram(mp.polygons)
+          case _ =>
+        }
+
+        localHistogram.toMap
+      }
+    }
+
+    histogramParts.reduce { (s1, s2) =>
+      (s1 zip s2).map { case (left, right) =>
+        (left.toSeq ++ right.toSeq)
+            .groupBy(_._1)
+            .map { case (nlcdType, counts) => (nlcdType, counts.map(_._2).sum)}
+      }
+    }
   }
 }
