@@ -1,18 +1,21 @@
 package org.wikiwatershed.mmw.geoprocessing
 
 import geotrellis.spark.{LayerId, SpatialKey, TileLayerRDD}
-import geotrellis.vector.{GeometryCollection, MultiPolygon, MultiPolygonResult, Polygon, PolygonResult}
+import geotrellis.vector.{Geometry, GeometryCollection, Line, LineResult, MultiPolygon, MultiPolygonResult, Polygon, PolygonResult}
+import geotrellis.vector.io._
 import com.typesafe.config.Config
+import geotrellis.raster._
 import geotrellis.raster.rasterize.{Callback, Rasterizer}
 import org.apache.spark.SparkContext
 import spark.jobserver.{SparkJob, SparkJobValid, SparkJobValidation}
+import spray.json._
 
 
 trait MapshedJobParams
 
 case class RasterVectorJobParams(
   polygon: Seq[MultiPolygon],
-  vector: GeometryCollection,
+  vector: Seq[Line],
   rasterLayerId: LayerId
 ) extends MapshedJobParams
 
@@ -28,8 +31,7 @@ object MapshedJob extends SparkJob with JobUtils {
       case RasterVectorJobParams(polygon, vector, rasterLayerId) =>
         val extent = GeometryCollection(polygon).envelope
         val rasterLayer = queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-         // rasterVectorJoin(vector, rasterLayer)
-         println(s"XXX $vector")
+        rasterVectorJoin(rasterLayer, vector)
       case _ => throw new Exception("Unknown Job Type")
     }
   }
@@ -64,7 +66,7 @@ object MapshedJob extends SparkJob with JobUtils {
           str => parseGeometry(str, polygonCRS, rasterCRS)
         }
         val vector = config.getStringList("input.vector").asScala.map {
-          str => parseGeometry(str, vectorCRS, rasterCRS)
+          str => str.parseJson.convertTo[Line].reproject(vectorCRS, rasterCRS)
         }
         val zoom = config.getInt("input.zoom")
         val rasterLayerId = LayerId(config.getString("input.raster"), zoom)
@@ -75,29 +77,69 @@ object MapshedJob extends SparkJob with JobUtils {
     }
   }
 
-  def histogram(layer: TileLayerRDD[SpatialKey], multiPolygons: Seq[MultiPolygon]) = {
+
+  def rasterVectorJoin(rasterLayer: TileLayerRDD[SpatialKey], vector: Seq[Line]): Map[Int, Int] = {
+  import scala.collection.mutable
+
+    rasterLayer.map({ case (key, tile) => {
+      val metadata = rasterLayer.metadata
+      val mapTransform = metadata.mapTransform
+      val extent = mapTransform(key)
+      val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+
+      val pixels = mutable.Set.empty[(Int, Int)]
+      vector.foreach(lineString =>
+        (lineString & extent) match {
+          case LineResult(line) =>
+            Rasterizer.foreachCellByLineString(line, rasterExtent)(
+              new Callback {
+                def apply(col: Int, row: Int): Unit = {
+                  val pixel = (col, row)
+//                  print(s"===> $pixel")
+                  pixels += pixel
+                }
+              }
+            )
+          case _ =>
+        }
+      )
+
+      val x = pixels.map({ case (col, row) => tile.get(col, row)}).toList
+      println(s"==> $x")
+
+      x
+    }
+  })
+      .reduce({ (left, right) => left ++ right})
+      .groupBy({ n => println(s"XXX $n"); n})
+      .map({ case (k, v) => (k, v.length)})
+  }
+
+  def histograms(nlcd: TileLayerRDD[SpatialKey], soil: TileLayerRDD[SpatialKey], multiPolygons: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
     import scala.collection.mutable
-    import geotrellis.raster.RasterExtent
+    import geotrellis.raster.rasterize.{Rasterizer, Callback}
 
-    val histogramParts = layer.map { case (key, tile) =>
+    val joinedRasters = nlcd.join(soil)
+    val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
       multiPolygons.map { multiPolygon =>
-        val extent = layer.metadata.mapTransform(key) // transform spatial key to extent
-        val rasterExtent = RasterExtent(extent, tile.cols, tile.rows) // transform extent to raster extent
-        val clipped = multiPolygon & extent
-        val localHistogram = mutable.Map.empty[Int, Int]
+        val extent = nlcd.metadata.mapTransform(key) // transform spatial key to extent
+      val rasterExtent = RasterExtent(extent, nlcdTile.cols, nlcdTile.rows) // transform extent to raster extent
+      val clipped = multiPolygon & extent
+        val localHistogram = mutable.Map.empty[(Int, Int), Int]
 
-        def intersectionComponentsToHistogram(ps: Seq[Polygon]) = {
+        def intersectionComponentsToHistogram(ps : Seq[Polygon]) = {
           ps.foreach { p =>
             Rasterizer.foreachCellByPolygon(p, rasterExtent)(
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
-                  val nlcdType = tile.get(col, row)
-
-                  if (!localHistogram.contains(nlcdType)) {
-                    localHistogram(nlcdType) = 0
+                  val nlcdType = nlcdTile.get(col,row)
+                  val soilType = soilTile.get(col,row) match {
+                    case NODATA => 3
+                    case n : Int => n
                   }
-
-                  localHistogram(nlcdType) += 1
+                  val pair = (nlcdType, soilType)
+                  if(!localHistogram.contains(pair)) { localHistogram(pair) = 0 }
+                  localHistogram(pair) += 1
                 }
               }
             )
@@ -105,8 +147,8 @@ object MapshedJob extends SparkJob with JobUtils {
         }
 
         clipped match {
-          case PolygonResult(p) => intersectionComponentsToHistogram(List(p))
-          case MultiPolygonResult(mp) => intersectionComponentsToHistogram(mp.polygons)
+          case PolygonResult(polygon) => intersectionComponentsToHistogram(List(polygon))
+          case MultiPolygonResult(multiPolygon) => intersectionComponentsToHistogram(multiPolygon.polygons)
           case _ =>
         }
 
@@ -118,9 +160,7 @@ object MapshedJob extends SparkJob with JobUtils {
       (s1 zip s2).map { case (left, right) =>
         (left.toSeq ++ right.toSeq)
           .groupBy(_._1)
-          .map { case (nlcdType, counts) =>
-            (nlcdType, counts.map(_._2).sum)
-          }
+          .map { case (nlcdSoilPair, counts) => (nlcdSoilPair, counts.map(_._2).sum) }
       }
     }
   }
