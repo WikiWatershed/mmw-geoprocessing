@@ -1,5 +1,6 @@
 package org.wikiwatershed.mmw.geoprocessing
 
+import geotrellis.proj4.{ConusAlbers, LatLng, WebMercator}
 import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.spark.io._
@@ -9,6 +10,7 @@ import geotrellis.vector.io._
 
 import com.typesafe.config.Config
 import org.apache.spark.SparkContext
+
 
 /**
   * Collection of common utilities to be used by SparkJobs
@@ -84,6 +86,22 @@ trait JobUtils {
     config.hasPath(key) match {
       case true => Option(config.getString(key))
       case false => None
+    }
+  }
+
+  /**
+    * For a given config and CRS key, return one of several recognized
+    * [[geotrellis.proj4.CRS]]s, or raise an error.
+    *
+    * @param  config  The config
+    * @param  key     The key (e.g. "input.rasterCRS")
+    */
+  def getCRS(config: Config, key: String) = {
+    config.getString(key) match {
+      case "LatLng" => LatLng
+      case "WebMercator" => WebMercator
+      case "ConusAlbers" => ConusAlbers
+      case s: String => throw new Exception(s"Unknown CRS: $s")
     }
   }
 }
