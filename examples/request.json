@@ -1,12 +1,16 @@
 {
     "input": {
-        "geometry": [
+        "polygon": [
             "{\"geometry\": {\"type\": \"Polygon\", \"coordinates\": [[[-69.30999755859375, 45.53136488027206], [-69.5269775390625, 45.36565470886627], [-69.06829833984375, 45.42929873257377], [-69.30999755859375, 45.53136488027206]]]}, \"type\": \"Feature\"}"
         ],
-        "tileCRS": "ConusAlbers",
-        "polyCRS": "LatLng",
-        "nlcdLayer": "nlcd-2011-30m-epsg5070",
-        "soilLayer": "ssurgo-hydro-groups-30m-epsg5070",
+        "vector": [
+            "{\"geometry\": {\"type\": \"Polygon\", \"coordinates\": [[[-69.30999755859375, 45.53136488027206], [-69.5269775390625, 45.36565470886627], [-69.06829833984375, 45.42929873257377], [-69.30999755859375, 45.53136488027206]]]}, \"type\": \"Feature\"}"
+        ],
+        "raster": "nlcd-2011-30m-new",
+        "rasterCRS": "ConusAlbers",
+        "polygonCRS": "LatLng",
+        "vectorCRS": "LatLng",
+        "operationType": "RasterVectorJoin",
         "zoom": 0
     }
 }

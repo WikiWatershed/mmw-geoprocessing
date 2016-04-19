@@ -8,7 +8,10 @@ import org.apache.spark.SparkContext
 import spark.jobserver.{SparkJob, SparkJobValid, SparkJobValidation}
 
 
-case class MapshedJobParams(nlcdLayerId: LayerId, geometry: Seq[MultiPolygon])
+trait MapshedJobParams { }
+
+case class RasterJobParams(geometry: Seq[MultiPolygon], layerId: String) extends MapshedJobParams
+case class RasterVectorJobParams(geometry: Seq[MultiPolygon], layerId: String) extends MapshedJobParams
 
 object MapshedJob extends SparkJob with JobUtils {
   override def validate(sc: SparkContext, config: Config): SparkJobValidation = {
@@ -31,23 +34,23 @@ object MapshedJob extends SparkJob with JobUtils {
     val getOptional = getOptionalFn(config)
 
     val zoom = config.getInt("input.zoom")
-    val nlcdLayer = LayerId(config.getString("input.nlcdLayer"), zoom)
+    val rasterLayer = LayerId(config.getString("input.raster"), zoom)
 
-    val tileCRS = getOptional("input.tileCRS") match {
+    val rasterCRS = getOptional("input.rasterCRS") match {
       case Some("LatLng") => LatLng
       case Some("WebMercator") => WebMercator
       case Some("ConsuAlbers") => ConusAlbers
       case _ => ConusAlbers
     }
-    val polyCRS = getOptional("input.polyCRS") match {
+    val polygonCRS = getOptional("input.polygonCRS") match {
       case Some("LatLng") => LatLng
       case Some("WebMercator") => WebMercator
       case Some("ConusAlbers") => ConusAlbers
       case _ => LatLng
     }
 
-    val geometry = config.getStringList("input.geometry").asScala.map {
-      str => parseGeometry(str, polyCRS, tileCRS)
+    val geometry = config.getStringList("input.polygon").asScala.map {
+      str => parseGeometry(str, polygonCRS, rasterCRS)
     }
 
     MapshedJobParams(nlcdLayer, geometry)
