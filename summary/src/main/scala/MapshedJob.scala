@@ -73,45 +73,42 @@ object MapshedJob extends SparkJob with JobUtils {
 
         RasterVectorJobParams(polygon, vector, rasterLayerId)
 
-      case _ => throw new Exception("Unknown Job Type")
+      case _ =>
+        throw new Exception("Unknown Job Type")
     }
   }
 
 
   def rasterVectorJoin(rasterLayer: TileLayerRDD[SpatialKey], vector: Seq[Line]): Map[Int, Int] = {
-  import scala.collection.mutable
 
-    rasterLayer.map({ case (key, tile) => {
-      val metadata = rasterLayer.metadata
-      val mapTransform = metadata.mapTransform
-      val extent = mapTransform(key)
-      val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+    rasterLayer
+      .map({ case (key, tile) => {
+        val metadata = rasterLayer.metadata
+        val mapTransform = metadata.mapTransform
+        val extent = mapTransform(key)
+        val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
 
-      val pixels = mutable.Set.empty[(Int, Int)]
-      vector.foreach(lineString =>
-        (lineString & extent) match {
-          case LineResult(line) =>
-            Rasterizer.foreachCellByLineString(line, rasterExtent)(
-              new Callback {
-                def apply(col: Int, row: Int): Unit = {
-                  val pixel = (col, row)
-//                  print(s"===> $pixel")
-                  pixels += pixel
+        val pixels = mutable.Set.empty[(Int, Int)]
+        vector.foreach(lineString =>
+          (lineString & extent) match {
+            case LineResult(line) =>
+              Rasterizer.foreachCellByLineString(line, rasterExtent)(
+                new Callback {
+                  def apply(col: Int, row: Int): Unit = {
+                    val pixel = (col, row)
+                    pixels += pixel
+                  }
                 }
-              }
-            )
-          case _ =>
-        }
-      )
+              )
+            case _ =>
+          }
+        )
 
-      val x = pixels.map({ case (col, row) => tile.get(col, row)}).toList
-      println(s"==> $x")
-
-      x
-    }
-  })
+        pixels.toList.map({ case (col, row) => tile.get(col, row)}).toList
+      }})
+      .map({ x => println(s"YYY $x"); x })
       .reduce({ (left, right) => left ++ right})
-      .groupBy({ n => println(s"XXX $n"); n})
+      .groupBy({ z => println(s"ZZZ $z"); z })
       .map({ case (k, v) => (k, v.length)})
   }
 
