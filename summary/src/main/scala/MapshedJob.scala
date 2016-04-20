@@ -7,6 +7,8 @@ import geotrellis.vector._
 import geotrellis.vector.io._
 
 import com.typesafe.config.Config
+import com.vividsolutions.jts.geom.Envelope
+import com.vividsolutions.jts.index.strtree.STRtree
 import org.apache.spark.SparkContext
 import spark.jobserver.{SparkJob, SparkJobValid, SparkJobValidation}
 import spray.json._
@@ -62,16 +64,26 @@ object MapshedJob extends SparkJob with JobUtils {
 
 
   def rasterVectorJoin(rasterLayer: TileLayerRDD[SpatialKey], vector: Seq[Line]): Map[Int, Int] = {
+    val rtree = new STRtree
+
+    vector.foreach({lineString =>
+      val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
+      rtree.insert(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin)), lineString)
+    })
 
     rasterLayer
       .map({ case (key, tile) => {
         val metadata = rasterLayer.metadata
         val mapTransform = metadata.mapTransform
         val extent = mapTransform(key)
+        val Extent(xmin, ymin, xmax, ymax) = extent
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
 
         val pixels = mutable.Set.empty[(Int, Int)]
-        vector.foreach(lineString =>
+
+        rtree.query(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin))).asScala.foreach({ lineStringObject =>
+          val lineString = lineStringObject.asInstanceOf[Line]
+
           (lineString & extent) match {
             case LineResult(line) =>
               Rasterizer.foreachCellByLineString(line, rasterExtent)(
@@ -84,7 +96,7 @@ object MapshedJob extends SparkJob with JobUtils {
               )
             case _ =>
           }
-        )
+        })
 
         pixels.toList.map({ case (col, row) => tile.get(col, row)}).toList
       }})
