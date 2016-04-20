@@ -37,7 +37,7 @@ object MapshedJob extends SparkJob with JobUtils {
       case RasterVectorJobParams(polygon, vector, rasterLayerId) =>
         val extent = GeometryCollection(polygon).envelope
         val rasterLayer = queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-        rasterVectorJoin(rasterLayer, vector)
+        rasterVectorJoinSimple(rasterLayer, vector)
        case _ =>
          throw new Exception("Unknown Job Type")
     }
@@ -101,5 +101,29 @@ object MapshedJob extends SparkJob with JobUtils {
       }})
       .reduce({ (left, right) => left ++ right})
       .groupBy(_._1).map({ case (k: Int, list: List[(Int, Int)]) => (k -> list.map(_._2).sum) })
+  }
+
+  def rasterVectorJoinSimple(raster: TileLayerRDD[SpatialKey], vector: Seq[Line]): Map[Int, Int] = {
+    val countMap = mutable.Map.empty[Int, Int]
+
+    raster map {case (key, tile) =>
+      val extent = raster.metadata mapTransform key
+      val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+
+      vector & extent match {
+        case LineResult(line) =>
+          Rasterizer.foreachCellByLineString(line, rasterExtent)(
+            new Callback {
+              def apply(col: Int, row: Int): Unit = {
+                val key = tile.get(col, row)
+                countMap += (key -> (countMap.getOrElse(key, 0) + 1))
+              }
+            }
+          )
+        case _ =>
+      }
+    }
+
+    countMap.toMap
   }
 }
