@@ -68,7 +68,7 @@ object MapshedJob extends SparkJob with JobUtils {
 
     vector.foreach({lineString =>
       val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
-      rtree.insert(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin)), lineString)
+      rtree.insert(new Envelope(xmin, xmax, ymin, ymax), lineString)
     })
 
     rasterLayer
@@ -80,7 +80,7 @@ object MapshedJob extends SparkJob with JobUtils {
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
         val nlcdMap = mutable.Map.empty[Int, Set[(Int, Int)]]
 
-        rtree.query(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin))).asScala.foreach({ lineStringObject =>
+        rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
           val lineString = lineStringObject.asInstanceOf[Line]
 
           (lineString & extent) match {
