@@ -104,26 +104,31 @@ object MapshedJob extends SparkJob with JobUtils {
   }
 
   def rasterVectorJoinSimple(raster: TileLayerRDD[SpatialKey], vector: Seq[Line]): Map[Int, Int] = {
-    val countMap = mutable.Map.empty[Int, Int]
-
-    raster map {case (key, tile) =>
+    raster map { case (key, tile) =>
       val extent = raster.metadata mapTransform key
       val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+      val counts = mutable.Map.empty[Int, Int]
 
-      vector & extent match {
-        case LineResult(line) =>
-          Rasterizer.foreachCellByLineString(line, rasterExtent)(
-            new Callback {
-              def apply(col: Int, row: Int): Unit = {
-                val key = tile.get(col, row)
-                countMap += (key -> (countMap.getOrElse(key, 0) + 1))
+      vector foreach {lineString =>
+        lineString & extent match {
+          case LineResult(line) =>
+            Rasterizer.foreachCellByLineString(line, rasterExtent)(
+              new Callback {
+                def apply(col: Int, row: Int): Unit = {
+                  val key = tile.get(col, row)
+                  counts += (key -> (counts.getOrElse(key, 0) + 1))
+                }
               }
-            }
-          )
-        case _ =>
+            )
+          case _ =>
+        }
       }
-    }
 
-    countMap.toMap
+      counts.toMap
+    } reduce { (left, right) =>
+      left ++ (right map { case (key, count) =>
+        key -> (count + left.getOrElse(key, 0))
+      })
+    }
   }
 }
