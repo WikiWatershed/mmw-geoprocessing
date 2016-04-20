@@ -37,7 +37,7 @@ object MapshedJob extends SparkJob with JobUtils {
       case RasterVectorJobParams(polygon, vector, rasterLayerId) =>
         val extent = GeometryCollection(polygon).envelope
         val rasterLayer = queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-        rasterVectorJoinSimple(rasterLayer, vector)
+        rasterVectorJoin(rasterLayer, vector)
        case _ =>
          throw new Exception("Unknown Job Type")
     }
@@ -68,7 +68,7 @@ object MapshedJob extends SparkJob with JobUtils {
 
     vector.foreach({lineString =>
       val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
-      rtree.insert(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin)), lineString)
+      rtree.insert(new Envelope(xmin, xmax, ymin, ymax), lineString)
     })
 
     rasterLayer
@@ -78,26 +78,23 @@ object MapshedJob extends SparkJob with JobUtils {
         val extent = mapTransform(key)
         val Extent(xmin, ymin, xmax, ymax) = extent
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+        val nlcdMap = mutable.Map.empty[Int, Set[(Int, Int)]]
 
-        val pixels = mutable.Map.empty[Int, Int]
-
-        rtree.query(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin))).asScala.foreach({ lineStringObject =>
+        rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
           val lineString = lineStringObject.asInstanceOf[Line]
 
-          (lineString & extent) match {
-            case LineResult(line) =>
-              Rasterizer.foreachCellByLineString(line, rasterExtent)(
-                new Callback {
-                  def apply(col: Int, row: Int): Unit = {
-                    val nlcd = tile.get(col, row)
-                    pixels += (nlcd -> (pixels.getOrElse(nlcd,0)+1))
-                  }
-                }
-              )
-            case _ =>
-          }
+          Rasterizer.foreachCellByLineString(lineString, rasterExtent)(
+            new Callback {
+              def apply(col: Int, row: Int): Unit = {
+                val nlcd = tile.get(col, row)
+                val pixel = (col, row)
+
+                nlcdMap += (nlcd -> (nlcdMap.getOrElse(nlcd, Set.empty[(Int, Int)]) + pixel))
+              }
+            }
+          )
         })
-        pixels.toList
+        nlcdMap.mapValues(_.size).toList
       }})
       .reduce({ (left, right) => left ++ right})
       .groupBy(_._1).map({ case (k: Int, list: List[(Int, Int)]) => (k -> list.map(_._2).sum) })
