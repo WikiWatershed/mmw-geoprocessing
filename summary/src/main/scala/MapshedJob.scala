@@ -108,6 +108,7 @@ object MapshedJob extends SparkJob with JobUtils {
       val extent = raster.metadata mapTransform key
       val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
       val counts = mutable.Map.empty[Int, Int]
+      val pixels = mutable.Set.empty[(Int, Int)]
 
       vector foreach {lineString =>
         lineString & extent match {
@@ -115,14 +116,18 @@ object MapshedJob extends SparkJob with JobUtils {
             Rasterizer.foreachCellByLineString(line, rasterExtent)(
               new Callback {
                 def apply(col: Int, row: Int): Unit = {
-                  val key = tile.get(col, row)
-                  counts += (key -> (counts.getOrElse(key, 0) + 1))
+                  pixels += ((col, row))
                 }
               }
             )
           case _ =>
         }
       }
+
+      pixels foreach {case (col, row) => {
+        val nlcd = tile.get(col, row)
+        counts += nlcd -> (counts.getOrElse(nlcd, 0) + 1)
+      }}
 
       counts.toMap
     } reduce { (left, right) =>
