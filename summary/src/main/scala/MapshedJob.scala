@@ -79,7 +79,7 @@ object MapshedJob extends SparkJob with JobUtils {
         val Extent(xmin, ymin, xmax, ymax) = extent
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
 
-        val pixels = mutable.Set.empty[(Int, Int)]
+        val pixels = mutable.Map.empty[Int, Int]
 
         rtree.query(new Envelope(xmin, (xmax - xmin), ymin, (ymax - ymin))).asScala.foreach({ lineStringObject =>
           val lineString = lineStringObject.asInstanceOf[Line]
@@ -89,19 +89,17 @@ object MapshedJob extends SparkJob with JobUtils {
               Rasterizer.foreachCellByLineString(line, rasterExtent)(
                 new Callback {
                   def apply(col: Int, row: Int): Unit = {
-                    val pixel = (col, row)
-                    pixels += pixel
+                    val nlcd = tile.get(col, row)
+                    pixels += (nlcd -> (pixels.getOrElse(nlcd,0)+1))
                   }
                 }
               )
             case _ =>
           }
         })
-
-        pixels.toList.map({ case (col, row) => tile.get(col, row)}).toList
+        pixels.toList
       }})
       .reduce({ (left, right) => left ++ right})
-      .groupBy(identity)
-      .map({ case (k, v) => (k, v.length)})
+      .groupBy(_._1).map({ case (k: Int, list: List[(Int, Int)]) => (k -> list.map(_._2).sum) })
   }
 }
