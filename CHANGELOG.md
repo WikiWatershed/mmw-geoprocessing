@@ -1,3 +1,7 @@
+## 1.0.0
+
+- Update GeoTrellis dependency to `0.10.0`
+
 ## 0.4.0
 
 - Update GeoTrellis dependency to `0.10.0-177004b`.
