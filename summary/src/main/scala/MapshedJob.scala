@@ -78,23 +78,22 @@ object MapshedJob extends SparkJob with JobUtils {
         val extent = mapTransform(key)
         val Extent(xmin, ymin, xmax, ymax) = extent
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
-        val nlcdMap = mutable.Map.empty[Int, Set[(Int, Int)]]
+        val pixels = mutable.ListBuffer.empty[(Int, Int)]
+        val cb = new Callback {
+          def apply(col: Int, row: Int): Unit = {
+            val pixel = (col, row)
+            pixels += pixel
+          }
+        }
 
         rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
-          val lineString = lineStringObject.asInstanceOf[Line]
-
-          Rasterizer.foreachCellByLineString(lineString, rasterExtent)(
-            new Callback {
-              def apply(col: Int, row: Int): Unit = {
-                val nlcd = tile.get(col, row)
-                val pixel = (col, row)
-
-                nlcdMap += (nlcd -> (nlcdMap.getOrElse(nlcd, Set.empty[(Int, Int)]) + pixel))
-              }
-            }
-          )
+          Rasterizer.foreachCellByLineString(lineStringObject.asInstanceOf[Line], rasterExtent)(cb)
         })
-        nlcdMap.mapValues(_.size).toList
+
+        pixels
+          .distinct.map({ case (col, row) => tile.get(col, row) })
+          .groupBy(identity).map({ case (k: Int, list: mutable.ListBuffer[Int]) => (k -> list.length) })
+          .toList
       }})
       .reduce({ (left, right) => left ++ right})
       .groupBy(_._1).map({ case (k: Int, list: List[(Int, Int)]) => (k -> list.map(_._2).sum) })
