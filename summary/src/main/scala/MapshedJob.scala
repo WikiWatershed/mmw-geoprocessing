@@ -79,21 +79,18 @@ object MapshedJob extends SparkJob with JobUtils {
         val Extent(xmin, ymin, xmax, ymax) = extent
         val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
         val nlcdMap = mutable.Map.empty[Int, Set[(Int, Int)]]
+        val cb = new Callback {
+          def apply(col: Int, row: Int): Unit = {
+            val nlcd = tile.get(col, row)
+            val pixel = (col, row)
+            nlcdMap += (nlcd -> (nlcdMap.getOrElse(nlcd, Set.empty[(Int, Int)]) + pixel))
+          }
+        }
 
         rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
-          val lineString = lineStringObject.asInstanceOf[Line]
-
-          Rasterizer.foreachCellByLineString(lineString, rasterExtent)(
-            new Callback {
-              def apply(col: Int, row: Int): Unit = {
-                val nlcd = tile.get(col, row)
-                val pixel = (col, row)
-
-                nlcdMap += (nlcd -> (nlcdMap.getOrElse(nlcd, Set.empty[(Int, Int)]) + pixel))
-              }
-            }
-          )
+          Rasterizer.foreachCellByLineString(lineStringObject.asInstanceOf[Line], rasterExtent)(cb)
         })
+
         nlcdMap.mapValues(_.size).toList
       }})
       .reduce({ (left, right) => left ++ right})
