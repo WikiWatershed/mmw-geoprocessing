@@ -21,7 +21,7 @@ sealed trait MapshedJobParams
 
 case class RasterLinesJobParams(
   polygon: Seq[MultiPolygon],
-  lines: Seq[Line],
+  lines: Seq[MultiLine],
   rasterLayerId: LayerId
 ) extends MapshedJobParams
 
@@ -54,7 +54,7 @@ object MapshedJob extends SparkJob with JobUtils {
         val polygonCRS = crs("input.polygonCRS")
         val linesCRS = crs("input.vectorCRS")
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
-        val lines = config.getStringList("input.vector").asScala.map({ str => str.parseJson.convertTo[Line].reproject(linesCRS, rasterCRS) })
+        val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
         val zoom = config.getInt("input.zoom")
         val rasterLayerId = LayerId(config.getString("input.raster"), zoom)
 
@@ -65,12 +65,14 @@ object MapshedJob extends SparkJob with JobUtils {
     }
   }
 
-  def rasterLinesJoin(rasterLayer: TileLayerRDD[SpatialKey], lines: Seq[Line]): Map[Int, Int] = {
+  def rasterLinesJoin(rasterLayer: TileLayerRDD[SpatialKey], lines: Seq[MultiLine]): Map[Int, Int] = {
     val rtree = new STRtree
 
-    lines.foreach({lineString =>
-      val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
-      rtree.insert(new Envelope(xmin, xmax, ymin, ymax), lineString)
+    lines.foreach({ multiLineString =>
+      multiLineString.lines.foreach({ lineString =>
+        val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
+        rtree.insert(new Envelope(xmin, xmax, ymin, ymax), lineString)
+      })
     })
 
     rasterLayer

@@ -1,6 +1,6 @@
 package org.wikiwatershed.mmw.geoprocessing
 
-import geotrellis.proj4.{ConusAlbers, LatLng, WebMercator}
+import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.spark.io._
@@ -32,6 +32,25 @@ trait JobUtils {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
       case mp: MultiPolygon => mp.reproject(srcCRS, destCRS)
       case _ => MultiPolygon()
+    }
+  }
+
+  /**
+    * Transform incoming GeoJSON into a [[MultiLine]] in the destination CRS.
+    * Same as [[parseGeometry()]] but for MultiLines instead.
+    *
+    * @param   geoJson  The incoming geometry
+    * @param   srcCRS   The CRS that the incoming geometry is in
+    * @param   destCRS  The CRS that the outgoing geometry should be in
+    * @return           A MultiLine
+    */
+  def toMultiLine(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
+    import spray.json._
+
+    geoJson.parseJson.convertTo[Geometry] match {
+      case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
+      case ml: MultiLine => ml.reproject(srcCRS, destCRS)
+      case _ => MultiLine()
     }
   }
 
