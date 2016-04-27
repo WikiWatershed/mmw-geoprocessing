@@ -22,7 +22,7 @@ sealed trait MapshedJobParams
 case class RasterLinesJobParams(
   polygon: Seq[MultiPolygon],
   lines: Seq[MultiLine],
-  rasterLayerId: LayerId
+  rasterLayerIds: Seq[LayerId]
 ) extends MapshedJobParams
 
 object MapshedJob extends SparkJob with JobUtils {
@@ -34,11 +34,13 @@ object MapshedJob extends SparkJob with JobUtils {
 
   override def runJob(sc: SparkContext, config: Config): Any = {
      parseConfig(config) match {
-      case RasterLinesJobParams(polygon, lines, rasterLayerId) =>
+      case RasterLinesJobParams(polygon, lines, rasterLayerIds) =>
         val extent = GeometryCollection(polygon).envelope
-        val rasterLayer = queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+        })
 
-        rasterLinesJoin(rasterLayer, lines)
+        rasterLinesJoin(rasterLayers, lines)
 
       case _ =>
          throw new Exception("Unknown Job Type")
@@ -50,22 +52,24 @@ object MapshedJob extends SparkJob with JobUtils {
 
     config.getString("input.operationType") match {
       case "RasterLinesJoin" =>
+        val zoom = config.getInt("input.zoom")
+
         val rasterCRS = crs("input.rasterCRS")
         val polygonCRS = crs("input.polygonCRS")
         val linesCRS = crs("input.vectorCRS")
+
+        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
         val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
-        val zoom = config.getInt("input.zoom")
-        val rasterLayerId = LayerId(config.getString("input.raster"), zoom)
 
-        RasterLinesJobParams(polygon, lines, rasterLayerId)
+        RasterLinesJobParams(polygon, lines, rasterLayerIds)
 
       case _ =>
         throw new Exception("Unknown Job Type")
     }
   }
 
-  def rasterLinesJoin(rasterLayer: TileLayerRDD[SpatialKey], lines: Seq[MultiLine]): Map[Int, Int] = {
+  def rasterLinesJoin(rasterLayers: Seq[TileLayerRDD[SpatialKey]], lines: Seq[MultiLine]): Map[Seq[Int], Int] = {
     val rtree = new STRtree
 
     lines.foreach({ multiLineString =>
@@ -75,11 +79,32 @@ object MapshedJob extends SparkJob with JobUtils {
       })
     })
 
-    rasterLayer
-      .map({ case (key, tile) => {
-        val extent = rasterLayer.metadata.mapTransform(key)
+    val joinedRaster = rasterLayers.length match {
+      case 1 =>
+        rasterLayers.head
+          .map({ case (k, v) => (k, List(v)) })
+      case 2 =>
+        rasterLayers.head.join(rasterLayers.tail.head)
+          .map({ case (k, (v1, v2)) => (k, List(v1, v2)) })
+      case 3 =>
+        rasterLayers.head.join(rasterLayers.tail.head).join(rasterLayers.tail.tail.head)
+          .map({ case (k, ((v1, v2), v3)) => (k, List(v1, v2, v3)) })
+
+      case 0 => throw new Exception("At least 1 raster must be specified")
+      case _ => throw new Exception("At most 3 rasters can be specified")
+    }
+
+    joinedRaster
+      .map({ case (key, tiles) =>
+        // We calculate extent using the first layer, since the joinedRasters
+        // don't have metadata or mapTransform defined on them. The extent will
+        // be the same for all layers since they are all in the same projection
+        val extent = rasterLayers.head.metadata.mapTransform(key)
+
+        // Similarly, we calculate rasterExtent using the first layer's tiles
+        val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
+
         val Extent(xmin, ymin, xmax, ymax) = extent
-        val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
         val pixels = mutable.ListBuffer.empty[(Int, Int)]
         val cb = new Callback {
           def apply(col: Int, row: Int): Unit = {
@@ -93,11 +118,11 @@ object MapshedJob extends SparkJob with JobUtils {
         })
 
         pixels
-          .distinct.map({ case (col, row) => tile.get(col, row) })
-          .groupBy(identity).map({ case (k: Int, list: mutable.ListBuffer[Int]) => (k -> list.length) })
+          .distinct.map({ case (col, row) => tiles.map({ tile => tile.get(col, row) }) })
+          .groupBy(identity).map({ case (k, list) => k -> list.length })
           .toList
-      }})
+      })
       .reduce({ (left, right) => left ++ right})
-      .groupBy(_._1).map({ case (k: Int, list: List[(Int, Int)]) => (k -> list.map(_._2).sum) })
+      .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
   }
 }
