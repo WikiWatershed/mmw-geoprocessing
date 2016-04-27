@@ -123,4 +123,30 @@ trait JobUtils {
       case s: String => throw new Exception(s"Unknown CRS: $s")
     }
   }
+
+  /**
+    * Returns a join of a sequence of raster layers, containing between 1
+    * and 3 layers.
+    *
+    * @param   rasterLayers  The list of layers
+    * @return                Joined RDD with a list of tiles, corresponding
+    *                        to each raster in the list, matching a spatial
+    *                        key
+    */
+  def joinRasters(rasterLayers: Seq[TileLayerRDD[SpatialKey]]) = {
+    rasterLayers.length match {
+      case 1 =>
+        rasterLayers.head
+          .map({ case (k, v) => (k, List(v)) })
+      case 2 =>
+        rasterLayers.head.join(rasterLayers.tail.head)
+          .map({ case (k, (v1, v2)) => (k, List(v1, v2)) })
+      case 3 =>
+        rasterLayers.head.join(rasterLayers.tail.head).join(rasterLayers.tail.tail.head)
+          .map({ case (k, ((v1, v2), v3)) => (k, List(v1, v2, v3)) })
+
+      case 0 => throw new Exception("At least 1 raster must be specified")
+      case _ => throw new Exception("At most 3 rasters can be specified")
+    }
+  }
 }

@@ -25,6 +25,11 @@ case class RasterLinesJobParams(
   rasterLayerIds: Seq[LayerId]
 ) extends MapshedJobParams
 
+case class RasterJobParams(
+  polygon: Seq[MultiPolygon],
+  rasterLayerIds: Seq[LayerId]
+) extends MapshedJobParams
+
 object MapshedJob extends SparkJob with JobUtils {
 
   override def validate(sc: SparkContext, config: Config): SparkJobValidation = {
@@ -41,6 +46,14 @@ object MapshedJob extends SparkJob with JobUtils {
         })
 
         rasterLinesJoin(rasterLayers, lines)
+
+      case RasterJobParams(polygon, rasterLayerIds) =>
+        val extent = GeometryCollection(polygon).envelope
+        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+        })
+
+        rasterJoin(rasterLayers, polygon)
 
       case _ =>
          throw new Exception("Unknown Job Type")
@@ -64,6 +77,17 @@ object MapshedJob extends SparkJob with JobUtils {
 
         RasterLinesJobParams(polygon, lines, rasterLayerIds)
 
+      case "RasterJoin" =>
+        val zoom = config.getInt("input.zoom")
+
+        val rasterCRS = crs("input.rasterCRS")
+        val polygonCRS = crs("input.polygonCRS")
+
+        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
+        val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+
+        RasterJobParams(polygon, rasterLayerIds)
+
       case _ =>
         throw new Exception("Unknown Job Type")
     }
@@ -79,22 +103,7 @@ object MapshedJob extends SparkJob with JobUtils {
       })
     })
 
-    val joinedRaster = rasterLayers.length match {
-      case 1 =>
-        rasterLayers.head
-          .map({ case (k, v) => (k, List(v)) })
-      case 2 =>
-        rasterLayers.head.join(rasterLayers.tail.head)
-          .map({ case (k, (v1, v2)) => (k, List(v1, v2)) })
-      case 3 =>
-        rasterLayers.head.join(rasterLayers.tail.head).join(rasterLayers.tail.tail.head)
-          .map({ case (k, ((v1, v2), v3)) => (k, List(v1, v2, v3)) })
-
-      case 0 => throw new Exception("At least 1 raster must be specified")
-      case _ => throw new Exception("At most 3 rasters can be specified")
-    }
-
-    joinedRaster
+    joinRasters(rasterLayers)
       .map({ case (key, tiles) =>
         // We calculate extent using the first layer, since the joinedRasters
         // don't have metadata or mapTransform defined on them. The extent will
@@ -115,6 +124,47 @@ object MapshedJob extends SparkJob with JobUtils {
 
         rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
           Rasterizer.foreachCellByLineString(lineStringObject.asInstanceOf[Line], rasterExtent)(cb)
+        })
+
+        pixels
+          .distinct.map({ case (col, row) => tiles.map({ tile => tile.get(col, row) }) })
+          .groupBy(identity).map({ case (k, list) => k -> list.length })
+          .toList
+      })
+      .reduce({ (left, right) => left ++ right})
+      .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
+  }
+
+  def rasterJoin(rasterLayers: Seq[TileLayerRDD[SpatialKey]], multiPolygons: Seq[MultiPolygon]): Map[Seq[Int], Int] = {
+    joinRasters(rasterLayers)
+      .map({ case (key, tiles) =>
+        // We calculate extent using the first layer, since the joinedRasters
+        // don't have metadata or mapTransform defined on them. The extent will
+        // be the same for all layers since they are all in the same projection
+        val extent = rasterLayers.head.metadata.mapTransform(key)
+
+        // Similarly, we calculate rasterExtent using the first layer's tiles
+        val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
+
+        val pixels = mutable.ListBuffer.empty[(Int, Int)]
+        val cb = new Callback {
+          def apply(col: Int, row: Int): Unit = {
+            val pixel = (col, row)
+            pixels += pixel
+          }
+        }
+
+        multiPolygons.foreach({ multiPolygon =>
+          multiPolygon & extent match {
+            case PolygonResult(p) =>
+              Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+            case MultiPolygonResult(mp) =>
+              mp.polygons.foreach({ p =>
+                Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+              })
+
+            case _ =>
+          }
         })
 
         pixels
