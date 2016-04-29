@@ -45,7 +45,7 @@ object MapshedJob extends SparkJob with JobUtils {
           queryAndCropLayer(catalog(sc), rasterLayerId, extent)
         })
 
-        rasterLinesJoin(rasterLayers, lines)
+        rasterLinesJoin(rasterLayers, lines, sc)
 
       case RasterJobParams(polygon, rasterLayerIds) =>
         val extent = GeometryCollection(polygon).envelope
@@ -93,27 +93,42 @@ object MapshedJob extends SparkJob with JobUtils {
     }
   }
 
-  def rasterLinesJoin(rasterLayers: Seq[TileLayerRDD[SpatialKey]], lines: Seq[MultiLine]): Map[Seq[Int], Int] = {
-    val rtree = new STRtree
+  def rasterLinesJoin(
+    rasterLayers: Seq[TileLayerRDD[SpatialKey]],
+    lines: Seq[MultiLine],
+    sc: SparkContext
+  ): Map[Seq[Int], Int] = {
 
+    val rtree = new STRtree
     lines.foreach({ multiLineString =>
-      multiLineString.lines.foreach({ lineString =>
-        val Extent(xmin, ymin, xmax, ymax) = lineString.envelope
-        rtree.insert(new Envelope(xmin, xmax, ymin, ymax), lineString)
-      })
+      val Extent(xmin, ymin, xmax, ymax) = multiLineString.envelope
+      rtree.insert(new Envelope(xmin, xmax, ymin, ymax), multiLineString)
     })
 
-    joinRasters(rasterLayers)
-      .map({ case (key, tiles) =>
-        // We calculate extent using the first layer, since the joinedRasters
-        // don't have metadata or mapTransform defined on them. The extent will
-        // be the same for all layers since they are all in the same projection
-        val extent = rasterLayers.head.metadata.mapTransform(key)
+    val mt = rasterLayers.head.metadata.mapTransform
+    val bucketedLines =
+      rasterLayers
+        .head.map(_._1).collect
+        .map({ k =>
+          val extent = mt(k)
+          val Extent(xmin, ymin, xmax, ymax) = extent
+          val envelope = new Envelope(xmin, xmax, ymin,ymax)
+          val list = rtree.query(envelope).asScala.map(_.asInstanceOf[MultiLine])
 
-        // Similarly, we calculate rasterExtent using the first layer's tiles
+          (k, (extent, list))
+        })
+    val bucketedLinesRDD = sc.parallelize(bucketedLines)
+
+    val joinedRasters = joinRasters(rasterLayers)
+
+    joinedRasters.join(bucketedLinesRDD)
+      .map({ case (key, tileExtentList) =>
+        val tiles = tileExtentList._1
+        val extent = tileExtentList._2._1
+        val list = tileExtentList._2._2
+
         val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
 
-        val Extent(xmin, ymin, xmax, ymax) = extent
         val pixels = mutable.ListBuffer.empty[(Int, Int)]
         val cb = new Callback {
           def apply(col: Int, row: Int): Unit = {
@@ -122,8 +137,8 @@ object MapshedJob extends SparkJob with JobUtils {
           }
         }
 
-        rtree.query(new Envelope(xmin, xmax, ymin, ymax)).asScala.foreach({ lineStringObject =>
-          Rasterizer.foreachCellByLineString(lineStringObject.asInstanceOf[Line], rasterExtent)(cb)
+        list.foreach({ o =>
+          Rasterizer.foreachCellByMultiLineString(o.asInstanceOf[MultiLine], rasterExtent)(cb)
         })
 
         pixels
