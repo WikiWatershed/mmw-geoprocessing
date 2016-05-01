@@ -30,13 +30,31 @@ case class RasterJobParams(
   rasterLayerIds: Seq[LayerId]
 ) extends MapshedJobParams
 
+
+/**
+  * A [[SparkJob]]-derived object for use with Spark Job Server.
+  */
 object MapshedJob extends SparkJob with JobUtils {
 
-  override def validate(sc: SparkContext, config: Config): SparkJobValidation = {
-    // TODO Add real validation
+  /**
+    * The validation method.  Takes a spark context and a
+    * configuration, answers whether or not they constitute a
+    * (potentially) valid job.
+    *
+    * @param  sc      The spark context
+    * @param  config  The job configuration
+    * @return         An indication of whether or not the job is valid
+    */
+  override def validate(sc: SparkContext, config: Config): SparkJobValidation =
     SparkJobValid
-  }
 
+  /**
+    * The 'runJob' method takes a spark context and a configuration
+    * and attempts to run the job.
+    *
+    * @param  sc      The spark context
+    * @param  config  The job configuration
+    */
   override def runJob(sc: SparkContext, config: Config): Any = {
      parseConfig(config) match {
       case RasterLinesJobParams(polygon, lines, rasterLayerIds) =>
@@ -60,17 +78,22 @@ object MapshedJob extends SparkJob with JobUtils {
     }
   }
 
+  /**
+    * Parse a configuration to determine what type of job has been
+    * requested.
+    *
+    * @param  config  A job configuration
+    * @return         One of the [[MapshedJobParams]]-derived types
+    */
   def parseConfig(config: Config): MapshedJobParams = {
     val crs: String => geotrellis.proj4.CRS = getCRS(config, _)
 
     config.getString("input.operationType") match {
       case "RasterLinesJoin" =>
         val zoom = config.getInt("input.zoom")
-
         val rasterCRS = crs("input.rasterCRS")
         val polygonCRS = crs("input.polygonCRS")
         val linesCRS = crs("input.vectorCRS")
-
         val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
         val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
@@ -79,20 +102,27 @@ object MapshedJob extends SparkJob with JobUtils {
 
       case "RasterJoin" =>
         val zoom = config.getInt("input.zoom")
-
         val rasterCRS = crs("input.rasterCRS")
         val polygonCRS = crs("input.polygonCRS")
-
         val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
 
         RasterJobParams(polygon, rasterLayerIds)
 
-      case _ =>
-        throw new Exception("Unknown Job Type")
+      case _ => throw new Exception("Unknown Job Type")
     }
   }
 
+  /**
+    * Perform a join between some rasters and some lines.  Given a
+    * collection of rasters and a collection of lines, return the
+    * pixel (or multi-pixel) values that are intersected by the
+    * rasterized lines.
+    *
+    * @param  rasterLayers  A sequence of [[TileLayerRDD]] raster layers
+    * @param  lines         A sequence of (multi-)lines
+    * @param  sc            The spark context (needed for creating RDD)
+    */
   def rasterLinesJoin(
     rasterLayers: Seq[TileLayerRDD[SpatialKey]],
     lines: Seq[MultiLine],
@@ -150,7 +180,19 @@ object MapshedJob extends SparkJob with JobUtils {
       .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
   }
 
-  def rasterJoin(rasterLayers: Seq[TileLayerRDD[SpatialKey]], multiPolygons: Seq[MultiPolygon]): Map[Seq[Int], Int] = {
+  /**
+    * Perform a join between some rasters and some polygons.  Given a
+    * collection of rasters and a collection of polygons, return the
+    * pixel (or multi-pixel) values that are covered by the rasterized
+    * shapes.
+    *
+    * @param  rasterLayers   A sequence of [[TileLayerRDD]] raster layers
+    * @param  multiPolygons  A sequence of (multi-)polygons
+    */
+  def rasterJoin(
+    rasterLayers: Seq[TileLayerRDD[SpatialKey]],
+    multiPolygons: Seq[MultiPolygon]
+  ): Map[Seq[Int], Int] = {
     joinRasters(rasterLayers)
       .map({ case (key, tiles) =>
         // We calculate extent using the first layer, since the joinedRasters

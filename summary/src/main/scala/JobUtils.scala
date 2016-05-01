@@ -10,12 +10,14 @@ import geotrellis.vector.io._
 
 import com.typesafe.config.Config
 import org.apache.spark.SparkContext
+import spray.json._
 
 
 /**
-  * Collection of common utilities to be used by SparkJobs
+  * Collection of common utilities to be used by SparkJobs.
   */
 trait JobUtils {
+
   /**
     * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
     * destination CRS.
@@ -25,9 +27,7 @@ trait JobUtils {
     * @param   destCRS  The CRS that the outgoing geometry should be in
     * @return           A MultiPolygon
     */
-  def parseGeometry(geoJson: String, srcCRS: geotrellis.proj4.CRS, destCRS: geotrellis.proj4.CRS): MultiPolygon = {
-    import spray.json._
-
+  def parseGeometry(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiPolygon = {
     geoJson.parseJson.convertTo[Geometry] match {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
       case mp: MultiPolygon => mp.reproject(srcCRS, destCRS)
@@ -45,8 +45,6 @@ trait JobUtils {
     * @return           A MultiLine
     */
   def toMultiLine(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
-    import spray.json._
-
     geoJson.parseJson.convertTo[Geometry] match {
       case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
       case ml: MultiLine => ml.reproject(srcCRS, destCRS)
@@ -63,7 +61,11 @@ trait JobUtils {
     * @param   extent   The extent (subset) of the layer that should be read
     * @return           An RDD of [[SpatialKey]]s
     */
-  def queryAndCropLayer(catalog: S3LayerReader, layerId: LayerId, extent: Extent): TileLayerRDD[SpatialKey] = {
+  def queryAndCropLayer(
+    catalog: S3LayerReader,
+    layerId: LayerId,
+    extent: Extent
+  ): TileLayerRDD[SpatialKey] = {
     catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
       .where(Intersects(extent))
       .result
@@ -98,8 +100,7 @@ trait JobUtils {
     * if it exists in the config.
     *
     * @param   config    The config containing keys
-    * @return            A function String => Option[String] that takes a key
-    *                    and returns its value if it exists, else None
+    * @return            A function String => Option[String] that takes a key and returns its value if it exists, else None
     */
   def getOptionalFn(config: Config) = (key: String) => {
     config.hasPath(key) match {
@@ -129,9 +130,7 @@ trait JobUtils {
     * and 3 layers.
     *
     * @param   rasterLayers  The list of layers
-    * @return                Joined RDD with a list of tiles, corresponding
-    *                        to each raster in the list, matching a spatial
-    *                        key
+    * @return                Joined RDD with a list of tiles, corresponding to each raster in the list, matching a spatial key
     */
   def joinRasters(rasterLayers: Seq[TileLayerRDD[SpatialKey]]) = {
     rasterLayers.length match {
