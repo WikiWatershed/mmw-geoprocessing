@@ -25,6 +25,12 @@ case class RasterLinesJobParams(
   rasterLayerIds: Seq[LayerId]
 ) extends MapshedJobParams
 
+case class RasterLinesJobSequentialParams(
+  polygon: Seq[MultiPolygon],
+  lines: Seq[MultiLine],
+  rasterLayerIds: Seq[LayerId]
+) extends MapshedJobParams
+
 case class RasterJobParams(
   polygon: Seq[MultiPolygon],
   rasterLayerIds: Seq[LayerId]
@@ -65,6 +71,14 @@ object MapshedJob extends SparkJob with JobUtils {
 
         rasterLinesJoin(rasterLayers, lines, sc)
 
+      case RasterLinesJobSequentialParams(polygon, lines, rasterLayerIds) =>
+        val extent = GeometryCollection(polygon).envelope
+        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+        })
+
+        rasterLinesJoinSequential(rasterLayers, lines)
+
       case RasterJobParams(polygon, rasterLayerIds) =>
         val extent = GeometryCollection(polygon).envelope
         val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
@@ -97,8 +111,17 @@ object MapshedJob extends SparkJob with JobUtils {
         val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
         val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
-
         RasterLinesJobParams(polygon, lines, rasterLayerIds)
+
+      case "RasterLinesJoinSequential" =>
+        val zoom = config.getInt("input.zoom")
+        val rasterCRS = crs("input.rasterCRS")
+        val polygonCRS = crs("input.polygonCRS")
+        val linesCRS = crs("input.vectorCRS")
+        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
+        val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+        val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
+        RasterLinesJobSequentialParams(polygon, lines, rasterLayerIds)
 
       case "RasterJoin" =>
         val zoom = config.getInt("input.zoom")
@@ -106,7 +129,6 @@ object MapshedJob extends SparkJob with JobUtils {
         val polygonCRS = crs("input.polygonCRS")
         val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
         val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
-
         RasterJobParams(polygon, rasterLayerIds)
 
       case _ => throw new Exception("Unknown Job Type")
@@ -158,6 +180,62 @@ object MapshedJob extends SparkJob with JobUtils {
         val list = tileExtentList._2._2
 
         val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
+
+        val pixels = mutable.ListBuffer.empty[(Int, Int)]
+        val cb = new Callback {
+          def apply(col: Int, row: Int): Unit = {
+            val pixel = (col, row)
+            pixels += pixel
+          }
+        }
+
+        list.foreach({ o =>
+          Rasterizer.foreachCellByMultiLineString(o.asInstanceOf[MultiLine], rasterExtent)(cb)
+        })
+
+        pixels
+          .distinct.map({ case (col, row) => tiles.map({ tile => tile.get(col, row) }) })
+          .groupBy(identity).map({ case (k, list) => k -> list.length })
+          .toList
+      })
+      .reduce({ (left, right) => left ++ right})
+      .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
+  }
+
+  /**
+    * Perform a join between some rasters and some lines.  Given a
+    * collection of rasters and a collection of lines, return the
+    * pixel (or multi-pixel) values that are intersected by the
+    * rasterized lines.
+    *
+    * This differs from 'rasterLinesJoin' in that it operates in an
+    * intentionally sequential fashion.
+    *
+    * @param  rasterLayers  A sequence of [[TileLayerRDD]] raster layers
+    * @param  lines         A sequence of (multi-)lines
+    */
+  def rasterLinesJoinSequential(
+    rasterLayers: Seq[TileLayerRDD[SpatialKey]],
+    lines: Seq[MultiLine]
+  ): Map[Seq[Int], Int] = {
+
+    val rtree = new STRtree
+    lines.foreach({ multiLineString =>
+      val Extent(xmin, ymin, xmax, ymax) = multiLineString.envelope
+      rtree.insert(new Envelope(xmin, xmax, ymin, ymax), multiLineString)
+    })
+
+    val mt = rasterLayers.head.metadata.mapTransform
+    val joinedRasters = joinRasters(rasterLayers)
+
+    joinRasters(rasterLayers)
+      .collect
+      .map({ case (key, tiles) =>
+        val extent = mt(key)
+        val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
+        val Extent(xmin, ymin, xmax, ymax) = extent
+        val envelope = new Envelope(xmin, xmax, ymin,ymax)
+        val list = rtree.query(envelope).asScala.map(_.asInstanceOf[MultiLine])
 
         val pixels = mutable.ListBuffer.empty[(Int, Int)]
         val cb = new Callback {
