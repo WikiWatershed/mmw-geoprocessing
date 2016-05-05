@@ -4,14 +4,12 @@ import geotrellis.raster._
 import geotrellis.raster.rasterize.{Callback, Rasterizer}
 import geotrellis.spark.{LayerId, SpatialKey, TileLayerRDD}
 import geotrellis.vector._
-import geotrellis.vector.io._
 
 import com.typesafe.config.Config
 import com.vividsolutions.jts.geom.Envelope
 import com.vividsolutions.jts.index.strtree.STRtree
 import org.apache.spark.SparkContext
 import spark.jobserver.{SparkJob, SparkJobValid, SparkJobValidation}
-import spray.json._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -189,8 +187,8 @@ object MapshedJob extends SparkJob with JobUtils {
           }
         }
 
-        list.foreach({ o =>
-          Rasterizer.foreachCellByMultiLineString(o.asInstanceOf[MultiLine], rasterExtent)(cb)
+        list.foreach({ multiLine =>
+          Rasterizer.foreachCellByMultiLineString(multiLine, rasterExtent)(cb)
         })
 
         pixels
@@ -245,8 +243,8 @@ object MapshedJob extends SparkJob with JobUtils {
           }
         }
 
-        list.foreach({ o =>
-          Rasterizer.foreachCellByMultiLineString(o.asInstanceOf[MultiLine], rasterExtent)(cb)
+        list.foreach({ multiLine =>
+          Rasterizer.foreachCellByMultiLineString(multiLine, rasterExtent)(cb)
         })
 
         pixels
