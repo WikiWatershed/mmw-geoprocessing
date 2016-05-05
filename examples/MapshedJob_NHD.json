@@ -17,7 +17,9 @@
       "{\"type\":\"LineString\",\"coordinates\":[[-75.1253105271638,39.9074260047224],[-75.1264545938287,39.9076192047221],[-75.1288215938251,39.9064824713905]]}"
     ],
     "vectorCRS": "LatLng",
-    "raster": "nlcd-2011-30m-epsg5070-0.10.0",
+    "rasters": [
+      "nlcd-2011-30m-epsg5070-0.10.0"
+    ],
     "rasterCRS": "ConusAlbers",
     "operationType": "RasterLinesJoin",
     "zoom": 0
