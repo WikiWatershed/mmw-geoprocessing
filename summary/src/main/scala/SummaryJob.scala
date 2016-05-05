@@ -3,10 +3,15 @@ package org.wikiwatershed.mmw.geoprocessing
 import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.vector._
+import geotrellis.proj4.{ConusAlbers, LatLng, WebMercator}
+import geotrellis.raster.rasterize.{Rasterizer, Callback}
 
 import com.typesafe.config.Config
 import org.apache.spark._
 import spark.jobserver._
+
+import scala.collection.mutable
+import scala.collection.JavaConverters._
 
 
 /**
@@ -43,9 +48,6 @@ object SummaryJob extends SparkJob with JobUtils {
     * @return         The NLCD layer, SOIL layer, and query polygon
     */
   def parseConfig(config: Config): SummaryJobParams = {
-    import scala.collection.JavaConverters._
-    import geotrellis.proj4._
-
     val getOptional = getOptionalFn(config)
 
     val zoom = config.getInt("input.zoom")
@@ -86,9 +88,6 @@ object SummaryJob extends SparkJob with JobUtils {
     * @return                 The histograms for the respective query polygons
     */
   def histograms(nlcd: TileLayerRDD[SpatialKey], soil: TileLayerRDD[SpatialKey], multiPolygons: Seq[MultiPolygon]): Seq[Map[(Int, Int), Int]] = {
-    import scala.collection.mutable
-    import geotrellis.raster.rasterize.{Rasterizer, Callback}
-
     val joinedRasters = nlcd.join(soil)
     val histogramParts = joinedRasters.map { case (key, (nlcdTile, soilTile)) =>
       multiPolygons.map { multiPolygon =>

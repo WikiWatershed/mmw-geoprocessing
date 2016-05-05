@@ -1,3 +1,25 @@
+## 1.1.0
+
+- Add `MapshedJob` class to handle requests for MapShed. This class supports
+  three kinds of operations:
+  - `RasterLinesJoin`: This operation takes a polygon, a set of vectors, and
+    a set of rasters, and returns a histogram containing tuples of raster
+    values mapped to the count of vector cells intersecting them. Under the
+    hood this builds an R-Tree to bucket vectors into tile extents before
+    matching them with the individual tiles. We construct an RDD from this
+    R-Tree and process the intersection parallely.
+  - `RasterLinesJoinSequential`: This operation performs the same task as the
+    previous one, but under the hood it does not convert the R-Tree to an RDD,
+    performing the task sequentially instead. These two methods exist so that
+    the client may choose which implementation to use, given the constraints
+    of input and infrastructure.
+  - `RasterJoin`: This operation takes a polygon and a set of rasters, and
+    returns a histogram containing tuples of raster values mapped to the count
+    of polygon cells intersecting them. This does not construct an R-Tree since
+    the number of polygons and rasters is much smaller than the number of
+    vectors in the input.
+
+
 ## 1.0.0
 
 - Update GeoTrellis dependency to `0.10.0`

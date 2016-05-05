@@ -1,5 +1,6 @@
 package org.wikiwatershed.mmw.geoprocessing
 
+import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 import geotrellis.raster._
 import geotrellis.spark._
 import geotrellis.spark.io._
@@ -9,11 +10,14 @@ import geotrellis.vector.io._
 
 import com.typesafe.config.Config
 import org.apache.spark.SparkContext
+import spray.json._
+
 
 /**
-  * Collection of common utilities to be used by SparkJobs
+  * Collection of common utilities to be used by SparkJobs.
   */
 trait JobUtils {
+
   /**
     * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
     * destination CRS.
@@ -23,13 +27,28 @@ trait JobUtils {
     * @param   destCRS  The CRS that the outgoing geometry should be in
     * @return           A MultiPolygon
     */
-  def parseGeometry(geoJson: String, srcCRS: geotrellis.proj4.CRS, destCRS: geotrellis.proj4.CRS): MultiPolygon = {
-    import spray.json._
-
+  def parseGeometry(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiPolygon = {
     geoJson.parseJson.convertTo[Geometry] match {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
       case mp: MultiPolygon => mp.reproject(srcCRS, destCRS)
       case _ => MultiPolygon()
+    }
+  }
+
+  /**
+    * Transform incoming GeoJSON into a [[MultiLine]] in the destination CRS.
+    * Same as [[parseGeometry()]] but for MultiLines instead.
+    *
+    * @param   geoJson  The incoming geometry
+    * @param   srcCRS   The CRS that the incoming geometry is in
+    * @param   destCRS  The CRS that the outgoing geometry should be in
+    * @return           A MultiLine
+    */
+  def toMultiLine(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
+    geoJson.parseJson.convertTo[Geometry] match {
+      case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
+      case ml: MultiLine => ml.reproject(srcCRS, destCRS)
+      case _ => MultiLine()
     }
   }
 
@@ -42,7 +61,11 @@ trait JobUtils {
     * @param   extent   The extent (subset) of the layer that should be read
     * @return           An RDD of [[SpatialKey]]s
     */
-  def queryAndCropLayer(catalog: S3LayerReader, layerId: LayerId, extent: Extent): TileLayerRDD[SpatialKey] = {
+  def queryAndCropLayer(
+    catalog: S3LayerReader,
+    layerId: LayerId,
+    extent: Extent
+  ): TileLayerRDD[SpatialKey] = {
     catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
       .where(Intersects(extent))
       .result
@@ -77,13 +100,52 @@ trait JobUtils {
     * if it exists in the config.
     *
     * @param   config    The config containing keys
-    * @return            A function String => Option[String] that takes a key
-    *                    and returns its value if it exists, else None
+    * @return            A function String => Option[String] that takes a key and returns its value if it exists, else None
     */
   def getOptionalFn(config: Config) = (key: String) => {
     config.hasPath(key) match {
       case true => Option(config.getString(key))
       case false => None
+    }
+  }
+
+  /**
+    * For a given config and CRS key, return one of several recognized
+    * [[geotrellis.proj4.CRS]]s, or raise an error.
+    *
+    * @param  config  The config
+    * @param  key     The key (e.g. "input.rasterCRS")
+    */
+  def getCRS(config: Config, key: String) = {
+    config.getString(key) match {
+      case "LatLng" => LatLng
+      case "WebMercator" => WebMercator
+      case "ConusAlbers" => ConusAlbers
+      case s: String => throw new Exception(s"Unknown CRS: $s")
+    }
+  }
+
+  /**
+    * Returns a join of a sequence of raster layers, containing between 1
+    * and 3 layers.
+    *
+    * @param   rasterLayers  The list of layers
+    * @return                Joined RDD with a list of tiles, corresponding to each raster in the list, matching a spatial key
+    */
+  def joinRasters(rasterLayers: Seq[TileLayerRDD[SpatialKey]]) = {
+    rasterLayers.length match {
+      case 1 =>
+        rasterLayers.head
+          .map({ case (k, v) => (k, List(v)) })
+      case 2 =>
+        rasterLayers.head.join(rasterLayers.tail.head)
+          .map({ case (k, (v1, v2)) => (k, List(v1, v2)) })
+      case 3 =>
+        rasterLayers.head.join(rasterLayers.tail.head).join(rasterLayers.tail.tail.head)
+          .map({ case (k, ((v1, v2), v3)) => (k, List(v1, v2, v3)) })
+
+      case 0 => throw new Exception("At least 1 raster must be specified")
+      case _ => throw new Exception("At most 3 rasters can be specified")
     }
   }
 }
