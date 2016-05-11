@@ -1,3 +1,16 @@
+## 1.2.0
+
+- **BREAKING CHANGE** `RasterJoin` has been renamed to `RasterGroupedCount` to
+  better match other similar new operations.
+- Add `RasterGroupedSum` operation which takes a polygon, a set of rasters, and
+  a target raster, and returns the sum of value of the target raster, grouped
+  by the values of the list of rasters, clipped to the polygon.
+- Add `RasterGroupedAverage` operation which takes a polygon, a set of rasters,
+  and a target raster, and returns the average of the target raster, grouped by
+  the values of the list of rasters, clipped to the polygon. If this endpoint
+  is given an empty list of rasters, it will perform an ungrouped average over
+  the entirety of the target raster clipped to the polygon.
+
 ## 1.1.0
 
 - Add `MapshedJob` class to handle requests for MapShed. This class supports
