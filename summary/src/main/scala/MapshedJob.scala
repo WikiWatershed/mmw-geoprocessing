@@ -51,10 +51,24 @@ object MapshedJob extends SparkJob with JobUtils {
         val rasterLayers = toLayers(rasterLayerIds, polygon, sc)
         rasterLinesJoinSequential(rasterLayers, lines)
 
-      case "RasterJoin" =>
+      case "RasterGroupedCount" =>
         val (rasterLayerIds, _, polygon) = parseGroupedConfig(config)
         val rasterLayers = toLayers(rasterLayerIds, polygon, sc)
-        rasterJoin(rasterLayers, polygon)
+        rasterGroupedCount(rasterLayers, polygon)
+
+      case "RasterGroupedSum" =>
+        val (rasterLayerIds, targetLayerId, polygon) = parseGroupedConfig(config)
+        val (rasterLayers, targetLayer) = toLayers(rasterLayerIds, targetLayerId.get, polygon, sc)
+        rasterGroupedSum(rasterLayers, targetLayer, polygon)
+
+      case "RasterGroupedAverage" =>
+        val (rasterLayerIds, targetLayerId, polygon) = parseGroupedConfig(config)
+        val (rasterLayers, targetLayer) = toLayers(rasterLayerIds, targetLayerId.get, polygon, sc)
+        if (rasterLayers.isEmpty) {
+          rasterAverage(targetLayer, polygon)
+        } else {
+          rasterGroupedAverage(rasterLayers, targetLayer, polygon)
+        }
 
       case _ => throw new Exception("Unknown Job Type")
     }
@@ -179,47 +193,118 @@ object MapshedJob extends SparkJob with JobUtils {
     * @param  rasterLayers   A sequence of [[TileLayerRDD]] raster layers
     * @param  multiPolygons  A sequence of (multi-)polygons
     */
-  def rasterJoin(
+  def rasterGroupedCount(
     rasterLayers: Seq[TileLayerRDD[SpatialKey]],
     multiPolygons: Seq[MultiPolygon]
   ): Map[Seq[Int], Int] = {
     joinRasters(rasterLayers)
       .map({ case (key, tiles) =>
-        // We calculate extent using the first layer, since the joinedRasters
-        // don't have metadata or mapTransform defined on them. The extent will
-        // be the same for all layers since they are all in the same projection
-        val extent = rasterLayers.head.metadata.mapTransform(key)
-
-        // Similarly, we calculate rasterExtent using the first layer's tiles
-        val rasterExtent = RasterExtent(extent, tiles.head.cols, tiles.head.rows)
-
-        val pixels = mutable.ListBuffer.empty[(Int, Int)]
-        val cb = new Callback {
-          def apply(col: Int, row: Int): Unit = {
-            val pixel = (col, row)
-            pixels += pixel
-          }
-        }
-
-        multiPolygons.foreach({ multiPolygon =>
-          multiPolygon & extent match {
-            case PolygonResult(p) =>
-              Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
-            case MultiPolygonResult(mp) =>
-              mp.polygons.foreach({ p =>
-                Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
-              })
-
-            case _ =>
-          }
-        })
-
-        pixels
-          .distinct.map({ case (col, row) => tiles.map({ tile => tile.get(col, row) }) })
+        getDistinctPixels(rasterLayers.head, key, tiles.head, multiPolygons)
+          .map({ case (col, row) => tiles.map({ tile => tile.get(col, row) }) })
           .groupBy(identity).map({ case (k, list) => k -> list.length })
           .toList
       })
       .reduce({ (left, right) => left ++ right})
       .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
+  }
+
+  /**
+    * Perform a join between some rasters and some polygons.  Given a
+    * collection of rasters, a collection of polygons, and a target raster,
+    * return the sum of pixel (or multi-pixel) values of the target raster
+    * that are covered by the rasterized shapes, grouped by the keys of
+    * raster layers.
+    *
+    * @param  rasterLayers   A sequence of [[TileLayerRDD]] raster layers
+    * @param  targetLayer    A [[TileLayerRDD]] target layer to aggregate
+    * @param  multiPolygons  A sequence of (multi-)polygons
+    */
+  def rasterGroupedSum(
+    rasterLayers: Seq[TileLayerRDD[SpatialKey]],
+    targetLayer: TileLayerRDD[SpatialKey],
+    multiPolygons: Seq[MultiPolygon]
+  ): Map[Seq[Int], Double] = {
+    targetLayer.join(joinRasters(rasterLayers))
+      .map({ case (key, (targetTile, rasterTiles)) =>
+        getDistinctPixels(targetLayer, key, targetTile, multiPolygons)
+          .map({ case (col, row) =>
+            val floatVal = targetTile.getDouble(col, row)
+            (
+              rasterTiles.map({ tile => tile.get(col, row) }),
+              if (isData(floatVal)) floatVal else 0.0
+            )
+          })
+          .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
+          .toList
+      })
+      .reduce({ (left, right) => left ++ right})
+      .groupBy(_._1).map({ case (k, list) => k -> list.map(_._2).sum })
+  }
+
+  /**
+    * Perform a join between some rasters and some polygons.  Given a
+    * collection of rasters, a collection of polygons, and a target raster,
+    * return the average of pixel (or multi-pixel) values of the target raster
+    * that are covered by the rasterized shapes, grouped by the keys of
+    * raster layers.
+    *
+    * @param  rasterLayers   A sequence of [[TileLayerRDD]] raster layers
+    * @param  targetLayer    A [[TileLayerRDD]] target layer to aggregate
+    * @param  multiPolygons  A sequence of (multi-)polygons
+    */
+  def rasterGroupedAverage(
+    rasterLayers: Seq[TileLayerRDD[SpatialKey]],
+    targetLayer: TileLayerRDD[SpatialKey],
+    multiPolygons: Seq[MultiPolygon]
+  ): Map[Seq[Int], Double] = {
+    targetLayer.join(joinRasters(rasterLayers))
+      .map({ case (key, (targetTile, rasterTiles)) =>
+        getDistinctPixels(targetLayer, key, targetTile, multiPolygons)
+          .map({ case (col, row) =>
+            val floatVal = targetTile.getDouble(col, row)
+            (
+              rasterTiles.map({ tile => tile.get(col, row) }),
+              if (isData(floatVal)) floatVal else 0.0
+            )
+          })
+          .groupBy(_._1).map({ case (k, list) =>
+            k -> (list.map(_._2).sum, list.map(_._2).length)
+          })
+          .toList
+      })
+      .reduce({ (left, right) => left ++ right})
+      .groupBy(_._1).map({ case (k, list) =>
+        k -> list.map(_._2._1).sum / list.map(_._2._2).sum
+      })
+  }
+
+  /**
+    * Given a target raster layer and a sequence of multiPolygons, averages the
+    * value of the raster layer clipped to those multiPolygons. Returns the
+    * results as the first value of the first key, to maintain API conventions.
+    *
+    * @param  targetLayer    A [[TileLayerRDD]] raster layer to average over
+    * @param  multiPolygons  A sequence of (multi-)polygons
+    */
+  def rasterAverage(
+    targetLayer: TileLayerRDD[SpatialKey],
+    multiPolygons: Seq[MultiPolygon]
+  ): Map[Seq[Int], Double] = {
+    val (totalSum, totalCount) = targetLayer.map({ case (key, tile) =>
+      val distinctPixels = getDistinctPixels(targetLayer, key, tile, multiPolygons)
+
+      val count = distinctPixels.length
+      val sum = distinctPixels.map({ case (col, row) =>
+        val floatVal = tile.getDouble(col, row)
+        if (isData(floatVal)) floatVal else 0.0
+      }).sum
+
+      (sum, count)
+    })
+    .reduce({ case ((sum1, count1), (sum2, count2)) =>
+      (sum1 + sum2, count1 + count2)
+    })
+
+    Map(List(0) -> totalSum / totalCount)
   }
 }

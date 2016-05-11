@@ -154,6 +154,45 @@ trait JobUtils {
   }
 
   /**
+    * Given a layer, a key, a tile, and a sequence of MultiPolygons, returns
+    * a list of distinct pixels present in all polygons clipped to an extent
+    * corresponding to the key and tile.
+    *
+    * @param   layer         The [[TileLayerRDD]] to clip
+    * @param   key           The [[SpatialKey]] to transform extent to
+    * @param   tile          The [[Tile]] to calculate raster extent from
+    * @param   multiPolygons The list of polygons
+    * @return                List of distinct pixels
+    */
+  def getDistinctPixels(layer: TileLayerRDD[SpatialKey], key: SpatialKey, tile: Tile, multiPolygons: Seq[MultiPolygon]) = {
+    val extent = layer.metadata.mapTransform(key)
+    val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+
+    val pixels = mutable.ListBuffer.empty[(Int, Int)]
+    val cb = new Callback {
+      def apply(col: Int, row: Int): Unit = {
+        val pixel = (col, row)
+        pixels += pixel
+      }
+    }
+
+    multiPolygons.foreach({ multiPolygon =>
+      multiPolygon & extent match {
+        case PolygonResult(p) =>
+          Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+        case MultiPolygonResult(mp) =>
+          mp.polygons.foreach({ p =>
+            Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+          })
+
+        case _ =>
+      }
+    })
+
+    pixels.distinct
+  }
+
+  /**
     * Convenience method for parsing config for various RasterGrouped operations
     */
   def parseGroupedConfig(config: Config) = {
