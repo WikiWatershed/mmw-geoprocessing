@@ -15,26 +15,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 
-sealed trait MapshedJobParams
-
-case class RasterLinesJobParams(
-  polygon: Seq[MultiPolygon],
-  lines: Seq[MultiLine],
-  rasterLayerIds: Seq[LayerId]
-) extends MapshedJobParams
-
-case class RasterLinesJobSequentialParams(
-  polygon: Seq[MultiPolygon],
-  lines: Seq[MultiLine],
-  rasterLayerIds: Seq[LayerId]
-) extends MapshedJobParams
-
-case class RasterJobParams(
-  polygon: Seq[MultiPolygon],
-  rasterLayerIds: Seq[LayerId]
-) extends MapshedJobParams
-
-
 /**
   * A [[SparkJob]]-derived object for use with Spark Job Server.
   */
@@ -60,74 +40,21 @@ object MapshedJob extends SparkJob with JobUtils {
     * @param  config  The job configuration
     */
   override def runJob(sc: SparkContext, config: Config): Any = {
-     parseConfig(config) match {
-      case RasterLinesJobParams(polygon, lines, rasterLayerIds) =>
-        val extent = GeometryCollection(polygon).envelope
-        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-        })
-
-        rasterLinesJoin(rasterLayers, lines, sc)
-
-      case RasterLinesJobSequentialParams(polygon, lines, rasterLayerIds) =>
-        val extent = GeometryCollection(polygon).envelope
-        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-        })
-
-        rasterLinesJoinSequential(rasterLayers, lines)
-
-      case RasterJobParams(polygon, rasterLayerIds) =>
-        val extent = GeometryCollection(polygon).envelope
-        val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-          queryAndCropLayer(catalog(sc), rasterLayerId, extent)
-        })
-
-        rasterJoin(rasterLayers, polygon)
-
-      case _ =>
-         throw new Exception("Unknown Job Type")
-    }
-  }
-
-  /**
-    * Parse a configuration to determine what type of job has been
-    * requested.
-    *
-    * @param  config  A job configuration
-    * @return         One of the [[MapshedJobParams]]-derived types
-    */
-  def parseConfig(config: Config): MapshedJobParams = {
-    val crs: String => geotrellis.proj4.CRS = getCRS(config, _)
-
     config.getString("input.operationType") match {
       case "RasterLinesJoin" =>
-        val zoom = config.getInt("input.zoom")
-        val rasterCRS = crs("input.rasterCRS")
-        val polygonCRS = crs("input.polygonCRS")
-        val linesCRS = crs("input.vectorCRS")
-        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-        val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
-        val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
-        RasterLinesJobParams(polygon, lines, rasterLayerIds)
+        val (rasterLayerIds, lines, polygon) = parseLinesJoinConfig(config)
+        val rasterLayers = toLayers(rasterLayerIds, polygon, sc)
+        rasterLinesJoin(rasterLayers, lines, sc)
 
       case "RasterLinesJoinSequential" =>
-        val zoom = config.getInt("input.zoom")
-        val rasterCRS = crs("input.rasterCRS")
-        val polygonCRS = crs("input.polygonCRS")
-        val linesCRS = crs("input.vectorCRS")
-        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-        val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
-        val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
-        RasterLinesJobSequentialParams(polygon, lines, rasterLayerIds)
+        val (rasterLayerIds, lines, polygon) = parseLinesJoinConfig(config)
+        val rasterLayers = toLayers(rasterLayerIds, polygon, sc)
+        rasterLinesJoinSequential(rasterLayers, lines)
 
       case "RasterJoin" =>
-        val zoom = config.getInt("input.zoom")
-        val rasterCRS = crs("input.rasterCRS")
-        val polygonCRS = crs("input.polygonCRS")
-        val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-        val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
-        RasterJobParams(polygon, rasterLayerIds)
+        val (rasterLayerIds, _, polygon) = parseGroupedConfig(config)
+        val rasterLayers = toLayers(rasterLayerIds, polygon, sc)
+        rasterJoin(rasterLayers, polygon)
 
       case _ => throw new Exception("Unknown Job Type")
     }
