@@ -2,6 +2,7 @@ package org.wikiwatershed.mmw.geoprocessing
 
 import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 import geotrellis.raster._
+import geotrellis.raster.rasterize._
 import geotrellis.spark._
 import geotrellis.spark.io._
 import geotrellis.spark.io.s3._
@@ -11,6 +12,9 @@ import geotrellis.vector.io._
 import com.typesafe.config.Config
 import org.apache.spark.SparkContext
 import spray.json._
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 
 /**
@@ -147,5 +151,112 @@ trait JobUtils {
       case 0 => throw new Exception("At least 1 raster must be specified")
       case _ => throw new Exception("At most 3 rasters can be specified")
     }
+  }
+
+  /**
+    * Given a layer, a key, a tile, and a sequence of MultiPolygons, returns
+    * a list of distinct pixels present in all polygons clipped to an extent
+    * corresponding to the key and tile.
+    *
+    * @param   layer         The [[TileLayerRDD]] to clip
+    * @param   key           The [[SpatialKey]] to transform extent to
+    * @param   tile          The [[Tile]] to calculate raster extent from
+    * @param   multiPolygons The list of polygons
+    * @return                List of distinct pixels
+    */
+  def getDistinctPixels(layer: TileLayerRDD[SpatialKey], key: SpatialKey, tile: Tile, multiPolygons: Seq[MultiPolygon]) = {
+    val extent = layer.metadata.mapTransform(key)
+    val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+
+    val pixels = mutable.ListBuffer.empty[(Int, Int)]
+    val cb = new Callback {
+      def apply(col: Int, row: Int): Unit = {
+        val pixel = (col, row)
+        pixels += pixel
+      }
+    }
+
+    multiPolygons.foreach({ multiPolygon =>
+      multiPolygon & extent match {
+        case PolygonResult(p) =>
+          Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+        case MultiPolygonResult(mp) =>
+          mp.polygons.foreach({ p =>
+            Rasterizer.foreachCellByPolygon(p, rasterExtent)(cb)
+          })
+
+        case _ =>
+      }
+    })
+
+    pixels.distinct
+  }
+
+  /**
+    * Convenience method for parsing config for various RasterGrouped operations
+    */
+  def parseGroupedConfig(config: Config) = {
+    val crs: String => geotrellis.proj4.CRS = getCRS(config, _)
+
+    val zoom = config.getInt("input.zoom")
+    val rasterCRS = crs("input.rasterCRS")
+    val polygonCRS = crs("input.polygonCRS")
+    val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
+    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+
+    val targetLayerId: Option[LayerId] = {
+      if (config.hasPath("input.targetRaster"))
+        Some(LayerId(config.getString("input.targetRaster"), zoom))
+      else
+        None
+    }
+
+    (rasterLayerIds, targetLayerId, polygon)
+  }
+
+  /**
+    * Convenience method for parsing config for various RasterLinesJoin operations
+    */
+  def parseLinesJoinConfig(config: Config) = {
+    val crs: String => geotrellis.proj4.CRS = getCRS(config, _)
+
+    val zoom = config.getInt("input.zoom")
+    val rasterCRS = crs("input.rasterCRS")
+    val polygonCRS = crs("input.polygonCRS")
+    val linesCRS = crs("input.vectorCRS")
+    val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
+    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+    val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
+
+    (rasterLayerIds, lines, polygon)
+  }
+
+  /**
+    * Set of methods for easy processing of parameters
+    */
+  def toLayers(rasterLayerIds: Seq[LayerId], polygon: Seq[MultiPolygon], sc: SparkContext) = {
+    val extent = GeometryCollection(polygon).envelope
+    val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+      queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+    })
+
+    rasterLayers
+  }
+
+  def toLayers(rasterLayerIds: Seq[LayerId], targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
+    val extent = GeometryCollection(polygon).envelope
+    val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+      queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+    })
+    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, extent)
+
+    (rasterLayers, targetLayer)
+  }
+
+  def toLayers(targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
+    val extent = GeometryCollection(polygon).envelope
+    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, extent)
+
+    targetLayer
   }
 }
