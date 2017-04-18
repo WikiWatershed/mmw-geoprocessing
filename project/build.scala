@@ -71,9 +71,12 @@ object Geoprocessing extends Build {
   )
 
   lazy val root = Project(id = "mmw-geoprocessing",
-    base = file(".")).aggregate(summary)
+    base = file(".")).aggregate(summary, mapshed)
 
   lazy val summary = Project("summary",  file("summary"))
+    .settings(summarySettings:_*)
+
+  lazy val mapshed = Project("mapshed", file("mapshed"))
     .settings(summarySettings:_*)
 
   lazy val summarySettings =
