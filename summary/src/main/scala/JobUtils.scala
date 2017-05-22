@@ -15,7 +15,7 @@ import spray.json._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
+import scala.collection.concurrent.TrieMap
 
 /**
   * Collection of common utilities to be used by SparkJobs.
@@ -280,27 +280,29 @@ trait JobUtils {
     }
   }.toMap
 
-  def rasterGroupedCount2(
+  def rasterGroupedCount2[A](
     rasterLayers: Seq[TileLayerSeq[SpatialKey]],
-    multiPolygon: MultiPolygon
-  ): Map[List[Int], Int] = {
+    multiPolygon: MultiPolygon,
+    init: () => A,
+    update: A => Unit
+  ): TrieMap[List[Int], A] = {
     // assume all the layouts are the same
     val metadata = rasterLayers.head.metadata
 
-    var pixelGroupCounts: Map[List[Int], Int] = Map.empty
+    var pixelGroups: TrieMap[List[Int], A] = TrieMap.empty
 
-    joinCollectionLayers(rasterLayers)
+    joinCollectionLayers(rasterLayers).par
       .map({ case (key, tiles) =>
         val extent: Extent = metadata.mapTransform(key)
         val re: RasterExtent = RasterExtent(extent, metadata.layout.tileCols, metadata.layout.tileRows)
 
         Rasterizer.foreachCellByMultiPolygon(multiPolygon, re){ case (col, row) =>
           val pixelGroup: List[Int] = tiles.map(_.get(col, row)).toList
-          val oldCount = pixelGroupCounts.getOrElse(pixelGroup, 0)
-          pixelGroupCounts = pixelGroupCounts.updated(pixelGroup, oldCount + 1)
+          val acc = pixelGroups.getOrElseUpdate(pixelGroup, init())
+          update(acc)
         }
       })
-    pixelGroupCounts
+    pixelGroups
   }
 
   def toLayers(rasterLayerIds: Seq[LayerId], targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {

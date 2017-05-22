@@ -50,9 +50,12 @@ class Router extends Directives with AkkaSystem.LoggerExecutor {
             val (rasterLayerIds, _, polygons) = parseGroupedConfig(config)
             val aoi: MultiPolygon = polygons.unionGeometries.asMultiPolygon.get
             val rasterLayers = toLayers2(rasterLayerIds, aoi)
-            val ans = rasterGroupedCount2(rasterLayers, aoi)
 
-            complete(ans.toString)
+            import java.util.concurrent.atomic.LongAdder
+            val ans = rasterGroupedCount2(rasterLayers, aoi, () => new LongAdder, (_: LongAdder).increment())
+            val ret = ans.mapValues(_.sum().toInt)
+
+            complete(ret.toString)
           }
         }
       }
