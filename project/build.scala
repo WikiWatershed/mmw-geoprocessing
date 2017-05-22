@@ -56,8 +56,7 @@ object Geoprocessing extends Build {
     "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main"
   )
 
-  val defaultAssemblySettings =
-    assemblySettings ++
+  val defaultAssemblySettings = assemblySettings ++
   Seq(
     test in assembly := {},
     mergeStrategy in assembly <<= (mergeStrategy in assembly) {
@@ -78,8 +77,8 @@ object Geoprocessing extends Build {
   lazy val summary = Project("summary",  file("summary"))
     .settings(summarySettings:_*)
 
-  lazy val api = Project("api",  file("api"))
-    .settings(apiSettings:_*).dependsOn(summary)
+  lazy val api = Project("api",  file("api")).dependsOn(summary)
+    .settings(apiSettings:_*)
 
   lazy val summarySettings =
     Seq(
@@ -103,8 +102,7 @@ object Geoprocessing extends Build {
         "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
         "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
       )
-    ) ++
-  defaultAssemblySettings
+    ) ++ defaultAssemblySettings
 
   lazy val apiSettings =
     Seq(
@@ -128,6 +126,5 @@ object Geoprocessing extends Build {
         "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
         "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
       )
-    ) ++
-      defaultAssemblySettings
+    ) ++ defaultAssemblySettings
 }

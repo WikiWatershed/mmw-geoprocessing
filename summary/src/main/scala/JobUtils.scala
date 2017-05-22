@@ -75,6 +75,17 @@ trait JobUtils {
       .result
   }
 
+
+  def queryAndCropLayer2(
+    catalog: S3CollectionLayerReader,
+    layerId: LayerId,
+    aoi: MultiPolygon
+  ): TileLayerSeq[SpatialKey] = {
+    catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
+      .where(Intersects(aoi))
+      .result
+  }
+
   /**
     * Return an [[S3LayerReader]] object to read from the catalog
     * directory in the azavea datahub.
@@ -97,6 +108,14 @@ trait JobUtils {
     val catalog = new S3LayerReader(attributeStore)
 
     catalog
+  }
+
+  def collectionLayerReader(): S3CollectionLayerReader =
+    collectionLayerReader("azavea-datahub", "catalog")
+
+  def collectionLayerReader(bucket: String, rootPath: String): S3CollectionLayerReader = {
+    val attributeStore = new S3AttributeStore(bucket, rootPath)
+    S3CollectionLayerReader(attributeStore)
   }
 
   /**
@@ -243,6 +262,47 @@ trait JobUtils {
     rasterLayers
   }
 
+  def toLayers2(rasterLayerIds: Seq[LayerId], polygon: MultiPolygon): Seq[TileLayerSeq[SpatialKey]] = {
+    val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
+      queryAndCropLayer2(collectionLayerReader(), rasterLayerId, polygon)
+    })
+
+    rasterLayers
+  }
+
+
+  def joinCollectionLayers(layers: Seq[TileLayerSeq[SpatialKey]]): Map[SpatialKey, Seq[Tile]] = {
+    val maps: Seq[Map[SpatialKey, Tile]] = layers.map((_: Seq[(SpatialKey, Tile)]).toMap)
+    val keySet: Array[SpatialKey] = maps.map(_.keySet).reduce(_ union _).toArray
+    for (key: SpatialKey <- keySet) yield {
+      val tiles: Seq[Tile] = maps.map(_.apply(key))
+      key -> tiles
+    }
+  }.toMap
+
+  def rasterGroupedCount2(
+    rasterLayers: Seq[TileLayerSeq[SpatialKey]],
+    multiPolygon: MultiPolygon
+  ): Map[List[Int], Int] = {
+    // assume all the layouts are the same
+    val metadata = rasterLayers.head.metadata
+
+    var pixelGroupCounts: Map[List[Int], Int] = Map.empty
+
+    joinCollectionLayers(rasterLayers)
+      .map({ case (key, tiles) =>
+        val extent: Extent = metadata.mapTransform(key)
+        val re: RasterExtent = RasterExtent(extent, metadata.layout.tileCols, metadata.layout.tileRows)
+
+        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re){ case (col, row) =>
+          val pixelGroup: List[Int] = tiles.map(_.get(col, row)).toList
+          val oldCount = pixelGroupCounts.getOrElse(pixelGroup, 0)
+          pixelGroupCounts = pixelGroupCounts.updated(pixelGroup, oldCount + 1)
+        }
+      })
+    pixelGroupCounts
+  }
+
   def toLayers(rasterLayerIds: Seq[LayerId], targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
     val extent = GeometryCollection(polygon).envelope
     val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
@@ -260,3 +320,5 @@ trait JobUtils {
     targetLayer
   }
 }
+
+object JobUtils extends JobUtils

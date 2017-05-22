@@ -19,6 +19,7 @@ package org.wikiwatershed.mmw.geoprocessing
 import geotrellis.raster._
 import geotrellis.raster.render._
 import geotrellis.spark._
+import geotrellis.vector._
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.HttpEntity
@@ -44,10 +45,14 @@ class Router extends Directives with AkkaSystem.LoggerExecutor {
       pathEndOrSingleSlash {
         post {
           entity(as[String]) { input =>
+            import JobUtils._
             val config = ConfigFactory.parseString(input)
-            val (rasterLayerIds, _, polygon) = JobUtils.parseGroupedConfig(config)
+            val (rasterLayerIds, _, polygons) = parseGroupedConfig(config)
+            val aoi: MultiPolygon = polygons.unionGeometries.asMultiPolygon.get
+            val rasterLayers = toLayers2(rasterLayerIds, aoi)
+            val ans = rasterGroupedCount2(rasterLayers, aoi)
 
-            complete(rasterLayerIds.toString)
+            complete(ans.toString)
           }
         }
       }
