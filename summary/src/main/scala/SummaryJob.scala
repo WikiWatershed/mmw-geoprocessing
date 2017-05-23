@@ -34,9 +34,9 @@ object SummaryJob extends SparkJob with JobUtils {
 
   override def runJob(sc: SparkContext, config: Config): Any = {
     val params = parseConfig(config)
-    val extent = GeometryCollection(params.geometry).envelope
-    val nlcdLayer = queryAndCropLayer(catalog(sc), params.nlcdLayerId, extent)
-    val soilLayer = queryAndCropLayer(catalog(sc), params.soilLayerId, extent)
+    val multiPolygon = params.geometry.unionGeometries.asMultiPolygon.get
+    val nlcdLayer = queryAndCropLayer(catalog(sc), params.nlcdLayerId, multiPolygon)
+    val soilLayer = queryAndCropLayer(catalog(sc), params.soilLayerId, multiPolygon)
 
     histograms(nlcdLayer, soilLayer, params.geometry)
   }
