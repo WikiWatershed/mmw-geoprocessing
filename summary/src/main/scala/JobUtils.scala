@@ -58,20 +58,20 @@ trait JobUtils {
 
   /**
     * Fetch a particular layer from the catalog, restricted to the
-    * given extent, and return a [[TileLayerRDD]] of the result.
+    * given multiPolygon, and return a [[TileLayerRDD]] of the result.
     *
-    * @param   catalog  The S3 location from which the data should be read
-    * @param   layerId  The layer that should be read
-    * @param   extent   The extent (subset) of the layer that should be read
-    * @return           An RDD of [[SpatialKey]]s
+    * @param   catalog       The S3 location from which the data should be read
+    * @param   layerId       The layer that should be read
+    * @param   multiPolygon  The shape to crop the layer to
+    * @return                An RDD of [[SpatialKey]]s
     */
   def queryAndCropLayer(
     catalog: S3LayerReader,
     layerId: LayerId,
-    extent: Extent
+    multiPolygon: MultiPolygon
   ): TileLayerRDD[SpatialKey] = {
     catalog.query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
-      .where(Intersects(extent))
+      .where(Intersects(multiPolygon))
       .result
   }
 
@@ -235,27 +235,27 @@ trait JobUtils {
     * Set of methods for easy processing of parameters
     */
   def toLayers(rasterLayerIds: Seq[LayerId], polygon: Seq[MultiPolygon], sc: SparkContext) = {
-    val extent = GeometryCollection(polygon).envelope
+    val multiPolygon = polygon.unionGeometries.asMultiPolygon.get
     val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-      queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+      queryAndCropLayer(catalog(sc), rasterLayerId, multiPolygon)
     })
 
     rasterLayers
   }
 
   def toLayers(rasterLayerIds: Seq[LayerId], targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
-    val extent = GeometryCollection(polygon).envelope
+    val multiPolygon = polygon.unionGeometries.asMultiPolygon.get
     val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-      queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+      queryAndCropLayer(catalog(sc), rasterLayerId, multiPolygon)
     })
-    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, extent)
+    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, multiPolygon)
 
     (rasterLayers, targetLayer)
   }
 
   def toLayers(targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
-    val extent = GeometryCollection(polygon).envelope
-    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, extent)
+    val multiPolygon = polygon.unionGeometries.asMultiPolygon.get
+    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, multiPolygon)
 
     targetLayer
   }
