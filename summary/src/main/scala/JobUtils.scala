@@ -58,7 +58,7 @@ trait JobUtils {
 
   /**
     * Fetch a particular layer from the catalog, restricted to the
-    * given extent, and return a [[TileLayerRDD]] of the result.
+    * given multiPolygon, and return a [[TileLayerRDD]] of the result.
     *
     * @param   catalog       The S3 location from which the data should be read
     * @param   layerId       The layer that should be read
@@ -244,11 +244,11 @@ trait JobUtils {
   }
 
   def toLayers(rasterLayerIds: Seq[LayerId], targetLayerId: LayerId, polygon: Seq[MultiPolygon], sc: SparkContext) = {
-    val extent = polygon.unionGeometries.asMultiPolygon.get
+    val multiPolygon = polygon.unionGeometries.asMultiPolygon.get
     val rasterLayers = rasterLayerIds.map({ rasterLayerId =>
-      queryAndCropLayer(catalog(sc), rasterLayerId, extent)
+      queryAndCropLayer(catalog(sc), rasterLayerId, multiPolygon)
     })
-    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, extent)
+    val targetLayer = queryAndCropLayer(catalog(sc), targetLayerId, multiPolygon)
 
     (rasterLayers, targetLayer)
   }
