@@ -1,3 +1,8 @@
+## 2.0.0
+
+- GeoTrellis S3 catalog has been changed to `datahub-catalogs-us-east-1`.
+- Update Kryo registrator in default configuration.
+
 ## 1.2.0
 
 - **BREAKING CHANGE** `RasterJoin` has been renamed to `RasterGroupedCount` to
