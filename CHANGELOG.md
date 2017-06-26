@@ -1,3 +1,7 @@
+## 2.0.1
+
+- Update GitHub OAuth token for JAR publishing.
+
 ## 2.0.0
 
 - GeoTrellis S3 catalog has been changed to `datahub-catalogs-us-east-1`.
