@@ -82,7 +82,7 @@ trait JobUtils {
     * @return  An S3LayerReader object
     */
   def catalog(sc: SparkContext): S3LayerReader =
-    catalog("azavea-datahub", "catalog")(sc)
+    catalog("datahub-catalogs-us-east-1", "")(sc)
 
   /**
     * Take a bucket and a catalog, and return an [[S3LayerReader]]
