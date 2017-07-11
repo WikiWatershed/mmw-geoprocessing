@@ -1,3 +1,18 @@
+## 2.1.0
+
+- Standardize incoming geometries to `MapshedJob`, to account for any subtle
+  geometric errors when supplying multiple, closely overlapping polygons. This
+  does not change the output of any existing successful operations.
+
+## 2.0.1
+
+- Update GitHub OAuth token for JAR publishing.
+
+## 2.0.0
+
+- GeoTrellis S3 catalog has been changed to `datahub-catalogs-us-east-1`.
+- Update Kryo registrator in default configuration.
+
 ## 1.2.0
 
 - **BREAKING CHANGE** `RasterJoin` has been renamed to `RasterGroupedCount` to

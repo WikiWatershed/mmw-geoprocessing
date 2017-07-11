@@ -82,7 +82,7 @@ trait JobUtils {
     * @return  An S3LayerReader object
     */
   def catalog(sc: SparkContext): S3LayerReader =
-    catalog("azavea-datahub", "catalog")(sc)
+    catalog("datahub-catalogs-us-east-1", "")(sc)
 
   /**
     * Take a bucket and a catalog, and return an [[S3LayerReader]]
@@ -202,7 +202,9 @@ trait JobUtils {
     val rasterCRS = crs("input.rasterCRS")
     val polygonCRS = crs("input.polygonCRS")
     val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+    val polygon = config.getStringList("input.polygon").asScala.map({
+      str => parseGeometry(str, polygonCRS, rasterCRS).buffer(0).asMultiPolygon.get
+    })
 
     val targetLayerId: Option[LayerId] = {
       if (config.hasPath("input.targetRaster"))
@@ -225,7 +227,9 @@ trait JobUtils {
     val polygonCRS = crs("input.polygonCRS")
     val linesCRS = crs("input.vectorCRS")
     val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+    val polygon = config.getStringList("input.polygon").asScala.map({
+      str => parseGeometry(str, polygonCRS, rasterCRS).buffer(0).asMultiPolygon.get
+    })
     val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
 
     (rasterLayerIds, lines, polygon)
