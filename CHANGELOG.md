@@ -1,3 +1,9 @@
+## 2.1.0
+
+- Standardize incoming geometries to `MapshedJob`, to account for any subtle
+  geometric errors when supplying multiple, closely overlapping polygons. This
+  does not change the output of any existing successful operations.
+
 ## 2.0.1
 
 - Update GitHub OAuth token for JAR publishing.
