@@ -202,7 +202,9 @@ trait JobUtils {
     val rasterCRS = crs("input.rasterCRS")
     val polygonCRS = crs("input.polygonCRS")
     val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+    val polygon = config.getStringList("input.polygon").asScala.map({
+      str => parseGeometry(str, polygonCRS, rasterCRS).buffer(0).asMultiPolygon.get
+    })
 
     val targetLayerId: Option[LayerId] = {
       if (config.hasPath("input.targetRaster"))
@@ -225,7 +227,9 @@ trait JobUtils {
     val polygonCRS = crs("input.polygonCRS")
     val linesCRS = crs("input.vectorCRS")
     val rasterLayerIds = config.getStringList("input.rasters").asScala.map({ str => LayerId(str, zoom) })
-    val polygon = config.getStringList("input.polygon").asScala.map({ str => parseGeometry(str, polygonCRS, rasterCRS) })
+    val polygon = config.getStringList("input.polygon").asScala.map({
+      str => parseGeometry(str, polygonCRS, rasterCRS).buffer(0).asMultiPolygon.get
+    })
     val lines = config.getStringList("input.vector").asScala.map({ str => toMultiLine(str, linesCRS, rasterCRS) })
 
     (rasterLayerIds, lines, polygon)
