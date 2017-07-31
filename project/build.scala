@@ -11,11 +11,15 @@ object Version {
     Properties.envOrElse(environmentVariable, default)
 
   val geotrellis   = "0.10.0"
-  val scala        = either("SCALA_VERSION", "2.10.6")
+  val scala        = either("SCALA_VERSION", "2.11.11")
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
   lazy val hadoop  = either("SPARK_HADOOP_VERSION", "2.6.0")
   lazy val spark   = either("SPARK_VERSION", "1.5.2")
+  lazy val akkaHttpVersion = "10.0.9"
+  lazy val akkaVersion    = "2.4.16"
+  lazy val akkaHttpCorsVersion = "0.2.1"
+  lazy val scalaLoggingVersion = "3.7.2"
 }
 
 object Geoprocessing extends Build {
@@ -27,6 +31,14 @@ object Geoprocessing extends Build {
     version := "2.1.0",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
+    name := "mmw-geoprocessing",
+
+    scalaVersion := Version.scala,
+    fork := true,
+
+    // raise memory limits here if necessary
+    javaOptions += "-Xmx2G",
+    javaOptions += "-Djava.library.path=/usr/local/lib",
 
     // disable annoying warnings about 2.10.x
     conflictWarning in ThisBuild := ConflictWarning.disable,
@@ -71,23 +83,29 @@ object Geoprocessing extends Build {
   )
 
   lazy val root = Project(id = "mmw-geoprocessing",
-    base = file(".")).aggregate(summary)
+    base = file(".")).aggregate(api, summary)
 
-  lazy val summary = Project("summary",  file("summary"))
+  lazy val api = Project("api", file("api"))
+    .settings(apiSettings:_*)
+
+  lazy val summary = Project("summary", file("summary"))
     .settings(summarySettings:_*)
+
+  lazy val apiSettings =
+    Seq(
+      libraryDependencies ++= Seq(
+        "com.typesafe.akka" %% "akka-actor" % Version.akkaVersion,
+        "com.typesafe.akka" %% "akka-http" % Version.akkaHttpVersion,
+        "com.typesafe.akka" %% "akka-stream" % Version.akkaVersion,
+        "com.typesafe.akka" %% "akka-http-spray-json" % Version.akkaHttpVersion,
+        "org.scalatest" %% "scalatest" % Version.scalatest % "test",
+        "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion
+      )
+    ) ++
+  defaultAssemblySettings
 
   lazy val summarySettings =
     Seq(
-      organization := "org.wikiwatershed.mmw.geoprocessing",
-      name := "mmw-geoprocessing",
-
-      scalaVersion := Version.scala,
-
-      fork := true,
-      // raise memory limits here if necessary
-      javaOptions += "-Xmx2G",
-      javaOptions += "-Djava.library.path=/usr/local/lib",
-
       libraryDependencies ++= Seq(
         "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
         "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
