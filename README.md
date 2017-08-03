@@ -1,5 +1,7 @@
 # mmw-geoprocessing
 
+[![Build Status](https://travis-ci.org/WikiWatershed/mmw-geoprocessing.svg?branch=develop)](https://travis-ci.org/WikiWatershed/mmw-geoprocessing)
+
 A [Spark Job Server](https://github.com/spark-jobserver/spark-jobserver) job for Model My Watershed geoprocessing.
 
 ## Usage
