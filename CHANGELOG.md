@@ -1,3 +1,8 @@
+## 3.0.0-alpha
+
+- Create an Akka HTTP server project in preparation for using the GeoTrellis
+collections API and removing Spark Job Server.
+
 ## 2.1.0
 
 - Standardize incoming geometries to `MapshedJob`, to account for any subtle
