@@ -9,6 +9,8 @@ import DefaultJsonProtocol._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 
+import geotrellis.raster.NODATA
+
 object WebServer extends HttpApp with App with LazyLogging {
   def routes: Route =
     get {
@@ -20,7 +22,6 @@ object WebServer extends HttpApp with App with LazyLogging {
       path("run") {
         entity(as[String]) { input =>
           println(input)
-          val NODATA = Int.MinValue
           val output = Map(
             List(90, 1) -> 1,
             List(31, 3) -> 57,

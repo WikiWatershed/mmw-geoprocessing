@@ -10,7 +10,8 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0"
+  val geotrellis   = "1.1.1"
+  val geotrellisOld = "0.10.0"
   val scala        = either("SCALA_VERSION", "2.11.11")
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
@@ -94,6 +95,8 @@ object Geoprocessing extends Build {
   lazy val apiSettings =
     Seq(
       libraryDependencies ++= Seq(
+        "org.locationtech.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
+        "org.locationtech.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
         "com.typesafe.akka" %% "akka-actor" % Version.akkaVersion,
         "com.typesafe.akka" %% "akka-http" % Version.akkaHttpVersion,
         "com.typesafe.akka" %% "akka-stream" % Version.akkaVersion,
@@ -107,8 +110,8 @@ object Geoprocessing extends Build {
   lazy val summarySettings =
     Seq(
       libraryDependencies ++= Seq(
-        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
-        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
+        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellisOld,
+        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellisOld,
         "org.apache.spark" %% "spark-core" % Version.spark % "provided",
         "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
         "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
