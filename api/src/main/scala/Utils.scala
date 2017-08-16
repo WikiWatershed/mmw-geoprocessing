@@ -33,9 +33,23 @@ trait Utils {
     zoom: Int,
     aoi: MultiPolygon
   ): Seq[TileLayerCollection[SpatialKey]] =
-    rasterIds
-      .map { str => LayerId(str, zoom) }
-      .map { layer => fetchCroppedLayer(layer, aoi)}
+    rasterIds.map { str => cropSingleRasterToAOI(str, zoom, aoi) }
+
+  /**
+    * Given a zoom level & area of interest, transform a raster filename into a
+    * TileLayerCollection[SpatialKey].
+    *
+    * @param   rasterId   The raster filename
+    * @param   zoom       The input zoom level
+    * @param   aoi        A MultiPolygon area of interest
+    * @return             TileLayerCollection[SpatialKey]
+    */
+  def cropSingleRasterToAOI(
+    rasterId: String,
+    zoom: Int,
+    aoi: MultiPolygon
+  ): TileLayerCollection[SpatialKey] =
+    fetchCroppedLayer(LayerId(rasterId, zoom), aoi)
 
   /**
     * Given input data containing a polygonCRS & a raster CRS, transform an
