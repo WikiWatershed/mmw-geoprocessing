@@ -21,6 +21,7 @@ object Version {
   lazy val akkaVersion    = "2.4.16"
   lazy val akkaHttpCorsVersion = "0.2.1"
   lazy val scalaLoggingVersion = "3.7.2"
+  lazy val sparkCoreVersion = "2.1.1"
 }
 
 object Geoprocessing extends Build {
@@ -102,7 +103,8 @@ object Geoprocessing extends Build {
         "com.typesafe.akka" %% "akka-stream" % Version.akkaVersion,
         "com.typesafe.akka" %% "akka-http-spray-json" % Version.akkaHttpVersion,
         "org.scalatest" %% "scalatest" % Version.scalatest % "test",
-        "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion
+        "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion,
+        "org.apache.spark" %% "spark-core" % Version.sparkCoreVersion
       )
     ) ++
   defaultAssemblySettings
