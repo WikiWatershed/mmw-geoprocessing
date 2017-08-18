@@ -4,7 +4,6 @@ import akka.http.scaladsl.unmarshalling.Unmarshaller._
 import akka.http.scaladsl.server.{ HttpApp, Route }
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import spray.json._
-import DefaultJsonProtocol._
 
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
@@ -12,6 +11,7 @@ import com.typesafe.scalalogging.LazyLogging
 case class InputData(
   operationType: String,
   rasters: List[String],
+  targetRaster: Option[String],
   zoom: Int,
   polygonCRS: String,
   rasterCRS: String,
@@ -19,12 +19,14 @@ case class InputData(
 )
 
 case class PostRequest(input: InputData)
-case class Result(result: Map[String, Int])
+case class ResultInt(result: Map[String, Int])
+case class ResultDouble(result: Map[String, Double])
 
 object PostRequestProtocol extends DefaultJsonProtocol {
-  implicit val inputFormat = jsonFormat6(InputData)
+  implicit val inputFormat = jsonFormat7(InputData)
   implicit val postFormat = jsonFormat1(PostRequest)
-  implicit val resultFormat = jsonFormat1(Result)
+  implicit val resultFormat = jsonFormat1(ResultInt)
+  implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
 }
 
 object WebServer extends HttpApp with App with LazyLogging with Geoprocessing {
@@ -42,6 +44,8 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing {
           data.input.operationType match {
             case "RasterGroupedCount" =>
               complete(getRasterGroupedCount(data.input))
+            case "RasterGroupedAverage" =>
+              complete(getRasterGroupedAverage(data.input))
             case _ =>
               throw new Exception(s"Unknown operationType: ${data.input.operationType}")
           }
