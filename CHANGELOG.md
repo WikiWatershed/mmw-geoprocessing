@@ -1,3 +1,7 @@
+## 3.0.0-alpha-2
+
+- Add RasterGroupedCount and RasterGroupedAverage geoprocessing operations
+
 ## 3.0.0-alpha
 
 - Create an Akka HTTP server project in preparation for using the GeoTrellis

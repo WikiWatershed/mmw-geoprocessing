@@ -10,7 +10,8 @@ object Version {
   def either(environmentVariable: String, default: String): String =
     Properties.envOrElse(environmentVariable, default)
 
-  val geotrellis   = "0.10.0"
+  val geotrellis   = "1.1.1"
+  val geotrellisOld = "0.10.0"
   val scala        = either("SCALA_VERSION", "2.11.11")
   val scalatest    = "2.2.1"
   lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
@@ -20,6 +21,7 @@ object Version {
   lazy val akkaVersion    = "2.4.16"
   lazy val akkaHttpCorsVersion = "0.2.1"
   lazy val scalaLoggingVersion = "3.7.2"
+  lazy val sparkCoreVersion = "2.1.1"
 }
 
 object Geoprocessing extends Build {
@@ -28,7 +30,7 @@ object Geoprocessing extends Build {
     super.settings ++
   Seq(
     shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
-    version := "3.0.0-alpha",
+    version := "3.0.0-alpha-2",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
     name := "mmw-geoprocessing",
@@ -94,12 +96,15 @@ object Geoprocessing extends Build {
   lazy val apiSettings =
     Seq(
       libraryDependencies ++= Seq(
+        "org.locationtech.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
+        "org.locationtech.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
         "com.typesafe.akka" %% "akka-actor" % Version.akkaVersion,
         "com.typesafe.akka" %% "akka-http" % Version.akkaHttpVersion,
         "com.typesafe.akka" %% "akka-stream" % Version.akkaVersion,
         "com.typesafe.akka" %% "akka-http-spray-json" % Version.akkaHttpVersion,
         "org.scalatest" %% "scalatest" % Version.scalatest % "test",
-        "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion
+        "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion,
+        "org.apache.spark" %% "spark-core" % Version.sparkCoreVersion
       )
     ) ++
   defaultAssemblySettings
@@ -107,8 +112,8 @@ object Geoprocessing extends Build {
   lazy val summarySettings =
     Seq(
       libraryDependencies ++= Seq(
-        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellis,
-        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellis,
+        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellisOld,
+        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellisOld,
         "org.apache.spark" %% "spark-core" % Version.spark % "provided",
         "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
         "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
