@@ -86,6 +86,43 @@ trait Utils {
   }
 
   /**
+    * Given an input vector along with a vectorCRS and rasterCRS, return a Seq
+    * of MultiLines
+    *
+    * @param   vector     A list of strings representing the input vector
+    * @param   vectorCRS  CRS for the input vector
+    * @param   rasterCRS  CRS for the input raster IDs
+    * @return             A list of MultiLines
+    */
+  def createMultiLineFromInput(
+    vector: List[String],
+    vectorCRS: String,
+    rasterCRS: String
+  ): Seq[MultiLine] = {
+    val parseVector =
+      parseMultiLineString(_: String, getCRS(vectorCRS), getCRS(rasterCRS))
+
+    vector.map { str => parseVector(str) }
+  }
+
+  /**
+    * Transform the incoming stream vector into a MultiLine in the
+    * destination CRS.
+    *
+    * @param   geoJson  The incoming geometry
+    * @param   srcCRS   The CRS that the incoming geometry is in
+    * @param   destCRS  The CRS that the outgoing geometry should be in
+    * @return           A MultiLine
+    */
+  def parseMultiLineString(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
+    geoJson.parseJson.convertTo[Geometry] match {
+      case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
+      case ml: MultiLine => ml.reproject(srcCRS, destCRS)
+      case _ => MultiLine()
+    }
+  }
+
+  /**
     * For a given config and CRS key, return one of several recognized
     * [[geotrellis.proj4.CRS]]s, or raise an error.
     *
