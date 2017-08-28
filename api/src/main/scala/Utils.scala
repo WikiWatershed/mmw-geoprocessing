@@ -58,13 +58,15 @@ trait Utils {
     * @param   input  InputData including polygons, polygonCRS, and rasterCRS
     * @return         A MultiPolygon
     */
-  def createAOIFromInput(input: InputData): MultiPolygon =
-    input.polygon.map { str =>
-      parseGeometry(str, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
-        .buffer(0)
-        .asMultiPolygon
-        .get
-    }.unionGeometries.asMultiPolygon.get
+  def createAOIFromInput(input: InputData): MultiPolygon = {
+    val parseGeom =
+      parseGeometry(_: String, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
+
+    input.polygon.map { str => parseGeom(str).buffer(0).asMultiPolygon.get }
+      .unionGeometries
+      .asMultiPolygon
+      .get
+  }
 
   /**
     * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
