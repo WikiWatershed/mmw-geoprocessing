@@ -48,6 +48,66 @@ trait Geoprocessing extends Utils {
   }
 
   /**
+    * For an InputData object, return a histogram of raster lines join results.
+    *
+    * @param   input  The InputData
+    * @return         A histogram of results
+    */
+  def getRasterLinesJoin(input: InputData): ResultInt = {
+    val aoi = createAOIFromInput(input)
+    val rasterLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+    val lines = input.vector match {
+      case Some(vector) =>
+        input.vectorCRS match {
+          case Some(crs) =>
+            createMultiLineFromInput(vector, crs, input.rasterCRS)
+          case None =>
+            throw new Exception("Request data missing required 'vectorCRS'.")
+        }
+      case None =>
+        throw new Exception("Request data missing required 'vector'.")
+    }
+    ResultInt(rasterLinesJoin(rasterLayers, lines))
+  }
+
+  private case class TilePixel(key: SpatialKey, col: Int, row: Int)
+
+  /**
+    * Given a collection of rasterLayers & a collection of lines, return the
+    * values intersected by the rasterized lines.
+    *
+    * @param   rasterLayers  A sequence of TileLayerCollections
+    * @param   lines         A sequence of MultiLines
+    * @return                A map of pixel counts
+    */
+  private def rasterLinesJoin(
+    rasterLayers: Seq[TileLayerCollection[SpatialKey]],
+    lines: Seq[MultiLine]
+  ): Map[String, Int] = {
+    val metadata = rasterLayers.head.metadata
+    var pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
+
+    joinCollectionLayers(rasterLayers).par
+      .foreach({ case (key, tiles) =>
+        val extent = metadata.mapTransform(key)
+        val re = RasterExtent(extent, metadata.layout.tileCols,
+            metadata.layout.tileRows)
+
+        lines.par.foreach({ multiLine =>
+          Rasterizer.foreachCellByMultiLineString(multiLine, re) { case (col, row) =>
+            val pixelGroup: (List[Int], TilePixel) =
+              (tiles.map(_.get(col, row)).toList, TilePixel(key, col, row))
+            pixelGroups.getOrElseUpdate(pixelGroup, 1)
+          }
+        })
+      })
+
+    pixelGroups
+      .groupBy(_._1._1.toString)
+      .mapValues(_.size)
+  }
+
+  /**
     * Return the average pixel value from a target raster and a MultiPolygon
     * area of interest.
     *
