@@ -58,13 +58,15 @@ trait Utils {
     * @param   input  InputData including polygons, polygonCRS, and rasterCRS
     * @return         A MultiPolygon
     */
-  def createAOIFromInput(input: InputData): MultiPolygon =
-    input.polygon.map { str =>
-      parseGeometry(str, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
-        .buffer(0)
-        .asMultiPolygon
-        .get
-    }.unionGeometries.asMultiPolygon.get
+  def createAOIFromInput(input: InputData): MultiPolygon = {
+    val parseGeom =
+      parseGeometry(_: String, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
+
+    input.polygon.map { str => parseGeom(str).buffer(0).asMultiPolygon.get }
+      .unionGeometries
+      .asMultiPolygon
+      .get
+  }
 
   /**
     * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
@@ -80,6 +82,43 @@ trait Utils {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
       case mp: MultiPolygon => mp.reproject(srcCRS, destCRS)
       case _ => MultiPolygon()
+    }
+  }
+
+  /**
+    * Given an input vector along with a vectorCRS and rasterCRS, return a Seq
+    * of MultiLines
+    *
+    * @param   vector     A list of strings representing the input vector
+    * @param   vectorCRS  CRS for the input vector
+    * @param   rasterCRS  CRS for the input raster IDs
+    * @return             A list of MultiLines
+    */
+  def createMultiLineFromInput(
+    vector: List[String],
+    vectorCRS: String,
+    rasterCRS: String
+  ): Seq[MultiLine] = {
+    val parseVector =
+      parseMultiLineString(_: String, getCRS(vectorCRS), getCRS(rasterCRS))
+
+    vector.map { str => parseVector(str) }
+  }
+
+  /**
+    * Transform the incoming stream vector into a MultiLine in the
+    * destination CRS.
+    *
+    * @param   geoJson  The incoming geometry
+    * @param   srcCRS   The CRS that the incoming geometry is in
+    * @param   destCRS  The CRS that the outgoing geometry should be in
+    * @return           A MultiLine
+    */
+  def parseMultiLineString(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
+    geoJson.parseJson.convertTo[Geometry] match {
+      case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
+      case ml: MultiLine => ml.reproject(srcCRS, destCRS)
+      case _ => MultiLine()
     }
   }
 
