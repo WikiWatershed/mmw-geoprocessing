@@ -1,3 +1,7 @@
+## 3.0.0-beta-1
+
+- Add RasterLinesJoin geoprocessing operation
+
 ## 3.0.0-alpha-2
 
 - Add RasterGroupedCount and RasterGroupedAverage geoprocessing operations
