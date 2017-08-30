@@ -4,12 +4,10 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
 import spray.json._
-import spray.json.DefaultJsonProtocol._
 
 import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 
 import geotrellis.raster._
-import geotrellis.raster.rasterize._
 import geotrellis.vector._
 import geotrellis.vector.io._
 import geotrellis.spark._

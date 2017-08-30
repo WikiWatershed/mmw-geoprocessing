@@ -95,7 +95,7 @@ trait Geoprocessing extends Utils {
     lines: Seq[MultiLine]
   ): Map[String, Int] = {
     val metadata = rasterLayers.head.metadata
-    var pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
+    val pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
 
     joinCollectionLayers(rasterLayers).par
       .foreach({ case (key, tiles) =>
@@ -223,7 +223,7 @@ trait Geoprocessing extends Utils {
     // assume all the layouts are the same
     val metadata = rasterLayers.head.metadata
 
-    var pixelGroups: TrieMap[List[Int], LongAdder] = TrieMap.empty
+    val pixelGroups: TrieMap[List[Int], LongAdder] = TrieMap.empty
 
     joinCollectionLayers(rasterLayers).par
       .foreach({ case (key, tiles) =>
