@@ -1,6 +1,8 @@
 package org.wikiwatershed.mmw.geoprocessing
 
 import java.util.concurrent.atomic.{LongAdder, DoubleAdder}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import collection.concurrent.TrieMap
 
@@ -17,10 +19,13 @@ trait Geoprocessing extends Utils {
     * @param   input  The InputData
     * @return         A histogram of results
     */
-  def getRasterGroupedCount(input: InputData): ResultInt = {
+  def getRasterGroupedCount(input: InputData): Future[ResultInt] = {
     val aoi = createAOIFromInput(input)
-    val rasterLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
-    ResultInt(rasterGroupedCount(rasterLayers, aoi))
+    val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+
+    futureLayers.map { layers =>
+      ResultInt(rasterGroupedCount(layers, aoi))
+    }
   }
 
   /**
@@ -30,9 +35,9 @@ trait Geoprocessing extends Utils {
     * @param   input  The InputData
     * @return         A histogram of results
     */
-  def getRasterGroupedAverage(input: InputData): ResultDouble = {
+  def getRasterGroupedAverage(input: InputData): Future[ResultDouble] = {
     val aoi = createAOIFromInput(input)
-    val rasterLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+    val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
     val targetLayer = input.targetRaster match {
       case Some(targetRaster) =>
         cropSingleRasterToAOI(targetRaster, input.zoom, aoi)
@@ -40,11 +45,13 @@ trait Geoprocessing extends Utils {
         throw new Exception("Request data missing required 'targetRaster'.")
     }
 
-    val average =
-      if (rasterLayers.isEmpty) rasterAverage(targetLayer, aoi)
-      else rasterGroupedAverage(rasterLayers, targetLayer, aoi)
+    futureLayers.map { rasterLayers =>
+      val average =
+        if (rasterLayers.isEmpty) rasterAverage(targetLayer, aoi)
+        else rasterGroupedAverage(rasterLayers, targetLayer, aoi)
 
-    ResultDouble(average)
+      ResultDouble(average)
+    }
   }
 
   /**
@@ -53,9 +60,9 @@ trait Geoprocessing extends Utils {
     * @param   input  The InputData
     * @return         A histogram of results
     */
-  def getRasterLinesJoin(input: InputData): ResultInt = {
+  def getRasterLinesJoin(input: InputData): Future[ResultInt] = {
     val aoi = createAOIFromInput(input)
-    val rasterLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+    val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
     val lines = input.vector match {
       case Some(vector) =>
         input.vectorCRS match {
@@ -67,7 +74,10 @@ trait Geoprocessing extends Utils {
       case None =>
         throw new Exception("Request data missing required 'vector'.")
     }
-    ResultInt(rasterLinesJoin(rasterLayers, lines))
+
+    futureLayers.map { rasterLayers =>
+      ResultInt(rasterLinesJoin(rasterLayers, lines))
+    }
   }
 
   private case class TilePixel(key: SpatialKey, col: Int, row: Int)
@@ -85,7 +95,7 @@ trait Geoprocessing extends Utils {
     lines: Seq[MultiLine]
   ): Map[String, Int] = {
     val metadata = rasterLayers.head.metadata
-    var pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
+    val pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
 
     joinCollectionLayers(rasterLayers).par
       .foreach({ case (key, tiles) =>
@@ -213,7 +223,7 @@ trait Geoprocessing extends Utils {
     // assume all the layouts are the same
     val metadata = rasterLayers.head.metadata
 
-    var pixelGroups: TrieMap[List[Int], LongAdder] = TrieMap.empty
+    val pixelGroups: TrieMap[List[Int], LongAdder] = TrieMap.empty
 
     joinCollectionLayers(rasterLayers).par
       .foreach({ case (key, tiles) =>
