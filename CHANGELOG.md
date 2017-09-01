@@ -1,3 +1,7 @@
+## 3.0.0-beta-2
+
+- Fetch tiles via Futures to parallelize IO
+
 ## 3.0.0-beta-1
 
 - Add RasterLinesJoin geoprocessing operation
