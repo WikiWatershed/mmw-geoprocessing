@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import division
+
+import sys
+import argparse
+import json
+
+try:
+    import requests
+except ImportError:
+    sys.exit(("ImportError: Missing required dependency `requests` "
+              "(http://docs.python-requests.org)"))
+
+
+geoprocessing_url = 'http://localhost:8090/run'
+headers = {'Content-type': 'application/json'}
+input_data_dir = './scripts/benchmarking_input_data'
+huc8_file = 'RasterGroupedCount_Schuylkill_HUC08.json'
+huc10_file = 'RasterGroupedCount_LowerSchuylkillRiver_HUC10.json'
+huc12_file = 'RasterGroupedCount_LittleNeshaminy_HUC12.json'
+rga_file = 'RasterGroupedAverage.json'
+
+def make_rga_request(input_file, operation_name):
+    print("Timing {} ->\n".format(operation_name))
+    elapsed_counts = []
+    for request_number in range(5):
+        with open("{}/{}".format(input_data_dir, input_file)) as data:
+            elapsed = requests.post(geoprocessing_url, data=data,
+                                    headers=headers).elapsed.total_seconds()
+            elapsed_counts.append(elapsed)
+            print("{}, run {} -> {} s".format(operation_name,
+                                              request_number + 1, elapsed))
+
+    operation_average = sum(elapsed_counts) / len(elapsed_counts)
+    print("\n{} average -> {} s\n".format(operation_name, operation_average))
+
+def make_rgc_request(input_file, operation_name):
+    for layer_count in [1, 2, 3]:
+        operation_string = "{}, {} layers".format(operation_name, layer_count)
+        print("Timing {} ->\n".format(operation_string))
+        elapsed_counts = []
+        for request_number in range(5):
+            with open("{}/{}".format(input_data_dir, input_file)) as data:
+                adjusted_data = json.load(data)
+                rasters = adjusted_data["input"]["rasters"]
+                adjusted_data["input"]["rasters"] = rasters[:layer_count]
+                elapsed = requests.post(geoprocessing_url,
+                                        data=json.dumps(adjusted_data),
+                                        headers=headers).elapsed.total_seconds()
+                elapsed_counts.append(elapsed)
+                print("{}, run {} -> {} s".format(operation_string,
+                                               request_number + 1, elapsed))
+
+        operation_average = sum(elapsed_counts) / len(elapsed_counts)
+        print("\n{} average -> {} s\n".format(operation_string, operation_average))
+
+def time_raster_grouped_average():
+    make_rga_request(rga_file, 'RasterGroupedAverage')
+
+def time_huc12():
+    make_rgc_request(huc12_file, 'HUC12 RasterGroupedCount')
+
+def time_huc10():
+    make_rgc_request(huc10_file, 'HUC10 RasterGroupedCount')
+
+def time_huc8():
+    make_rgc_request(huc8_file, 'HUC8 RasterGroupedCount')
+
+parser = argparse.ArgumentParser(description='Test Geoprocessing service \
+    response times for RasterGroupedCount and RasterGroupedAverage operations.')
+parser.add_argument('--huc8', help='Time a HUC8 with 1-3 layers',
+                    action='store_true')
+parser.add_argument('--huc10', help='Time a HUC10 with 1-3 layers',
+                    action='store_true')
+parser.add_argument('--huc12', help='Time a HUC12 with 1-3 layers',
+                    action='store_true')
+parser.add_argument('--rga', help='Time a RasterGroupedAverage operation',
+                    action='store_true')
+
+args = vars(parser.parse_args(sys.argv[1:]))
+
+if True not in args.values():
+    time_raster_grouped_average()
+    time_huc12()
+    time_huc10()
+    time_huc8()
+else:
+    if args['huc8']: time_huc8()
+    if args['huc10']: time_huc10()
+    if args['huc12']: time_huc12()
+    if args['rga']: time_raster_grouped_average()
