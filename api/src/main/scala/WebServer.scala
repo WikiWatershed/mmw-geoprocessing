@@ -12,6 +12,7 @@ case class InputData(
   operationType: String,
   rasters: List[String],
   targetRaster: Option[String],
+  pixelIsArea: Option[Boolean],
   zoom: Int,
   polygonCRS: String,
   rasterCRS: String,
@@ -25,7 +26,7 @@ case class ResultInt(result: Map[String, Int])
 case class ResultDouble(result: Map[String, Double])
 
 object PostRequestProtocol extends DefaultJsonProtocol {
-  implicit val inputFormat = jsonFormat9(InputData)
+  implicit val inputFormat = jsonFormat10(InputData)
   implicit val postFormat = jsonFormat1(PostRequest)
   implicit val resultFormat = jsonFormat1(ResultInt)
   implicit val resultDoubleFormat = jsonFormat1(ResultDouble)

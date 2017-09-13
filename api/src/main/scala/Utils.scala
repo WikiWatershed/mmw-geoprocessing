@@ -8,6 +8,7 @@ import spray.json._
 import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 
 import geotrellis.raster._
+import geotrellis.raster.rasterize._
 import geotrellis.vector._
 import geotrellis.vector.io._
 import geotrellis.spark._
@@ -70,6 +71,26 @@ trait Utils {
       .asMultiPolygon
       .get
   }
+
+  /**
+    * Given an optional boolean value, if it is true, returns Rasterizer
+    * Options treating the raster pixels as areas. If false, returns Options
+    * treating the raster pixels as points. If not specified, return default
+    * value, which treats pixels as points.
+    *
+    * @param   pixelIsArea  An optional boolean value
+    * @return               Rasterizer Options
+    */
+  def getRasterizerOptions(pixelIsArea: Option[Boolean]): Rasterizer.Options =
+    pixelIsArea match {
+      case Some(value) =>
+        if (value)
+          Rasterizer.Options(includePartial = true, sampleType = PixelIsArea)
+        else
+          Rasterizer.Options(includePartial = true, sampleType = PixelIsPoint)
+
+      case None => Rasterizer.Options.DEFAULT
+    }
 
   /**
     * Transform the incoming GeoJSON into a [[MultiPolygon]] in the
