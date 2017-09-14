@@ -22,9 +22,10 @@ trait Geoprocessing extends Utils {
   def getRasterGroupedCount(input: InputData): Future[ResultInt] = {
     val aoi = createAOIFromInput(input)
     val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+    val opts = getRasterizerOptions(input.pixelIsArea)
 
     futureLayers.map { layers =>
-      ResultInt(rasterGroupedCount(layers, aoi))
+      ResultInt(rasterGroupedCount(layers, aoi, opts))
     }
   }
 
@@ -44,11 +45,12 @@ trait Geoprocessing extends Utils {
       case None =>
         throw new Exception("Request data missing required 'targetRaster'.")
     }
+    val opts = getRasterizerOptions(input.pixelIsArea)
 
     futureLayers.map { rasterLayers =>
       val average =
-        if (rasterLayers.isEmpty) rasterAverage(targetLayer, aoi)
-        else rasterGroupedAverage(rasterLayers, targetLayer, aoi)
+        if (rasterLayers.isEmpty) rasterAverage(targetLayer, aoi, opts)
+        else rasterGroupedAverage(rasterLayers, targetLayer, aoi, opts)
 
       ResultDouble(average)
     }
@@ -127,7 +129,8 @@ trait Geoprocessing extends Utils {
     */
   private def rasterAverage(
     targetLayer: TileLayerCollection[SpatialKey],
-    multiPolygon: MultiPolygon
+    multiPolygon: MultiPolygon,
+    opts: Rasterizer.Options
   ): Map[String, Double] = {
     val update = (newValue: Double, pixelValue: (DoubleAdder, LongAdder)) => {
       pixelValue match {
@@ -142,7 +145,7 @@ trait Geoprocessing extends Utils {
       val re = RasterExtent(metadata.mapTransform(key), metadata.layout.tileCols,
         metadata.layout.tileRows)
 
-      Rasterizer.foreachCellByMultiPolygon(multiPolygon, re) { case (col, row) =>
+      Rasterizer.foreachCellByMultiPolygon(multiPolygon, re, opts) { case (col, row) =>
         val targetLayerData = tile.getDouble(col, row)
 
         val targetLayerValue =
@@ -170,7 +173,8 @@ trait Geoprocessing extends Utils {
   private def rasterGroupedAverage(
     rasterLayers: Seq[TileLayerCollection[SpatialKey]],
     targetLayer: TileLayerCollection[SpatialKey],
-    multiPolygon: MultiPolygon
+    multiPolygon: MultiPolygon,
+    opts: Rasterizer.Options
   ): Map[String, Double] = {
     val init = () => ( new DoubleAdder, new LongAdder )
     val update = (newValue: Double, pixelValue: (DoubleAdder, LongAdder)) => {
@@ -188,7 +192,7 @@ trait Geoprocessing extends Utils {
         val re: RasterExtent = RasterExtent(extent, metadata.layout.tileCols,
             metadata.layout.tileRows)
 
-        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re) { case (col, row) =>
+        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re, opts) { case (col, row) =>
           val pixelKey: List[Int] = tiles.map(_.get(col, row)).toList
           val pixelValues = pixelGroups.getOrElseUpdate(pixelKey, init())
           val targetLayerData = targetTile.getDouble(col, row)
@@ -216,7 +220,8 @@ trait Geoprocessing extends Utils {
     */
   private def rasterGroupedCount(
     rasterLayers: Seq[TileLayerCollection[SpatialKey]],
-    multiPolygon: MultiPolygon
+    multiPolygon: MultiPolygon,
+    opts: Rasterizer.Options
   ): Map[String, Int] = {
     val init = () => new LongAdder
     val update = (_: LongAdder).increment()
@@ -231,7 +236,7 @@ trait Geoprocessing extends Utils {
         val re: RasterExtent = RasterExtent(extent, metadata.layout.tileCols,
             metadata.layout.tileRows)
 
-        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re) { case (col, row) =>
+        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re, opts) { case (col, row) =>
           val pixelGroup: List[Int] = tiles.map(_.get(col, row)).toList
           val acc = pixelGroups.getOrElseUpdate(pixelGroup, init())
           update(acc)
