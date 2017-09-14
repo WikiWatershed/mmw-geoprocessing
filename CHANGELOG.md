@@ -1,3 +1,10 @@
+## 3.0.0-beta-3
+
+- Add optional boolean parameter `pixelIsArea` which can be used
+  to treat the pixels of a raster as an area instead of a point.
+  This is useful when dealing with very large pixels of a low
+  resolution raster and small input polygons.
+
 ## 3.0.0-beta-2
 
 - Fetch tiles via Futures to parallelize IO
