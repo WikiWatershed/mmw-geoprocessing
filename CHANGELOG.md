@@ -1,3 +1,27 @@
+## 3.0.0-beta-3
+
+- Add optional boolean parameter `pixelIsArea` which can be used
+  to treat the pixels of a raster as an area instead of a point.
+  This is useful when dealing with very large pixels of a low
+  resolution raster and small input polygons.
+
+## 3.0.0-beta-2
+
+- Fetch tiles via Futures to parallelize IO
+
+## 3.0.0-beta-1
+
+- Add RasterLinesJoin geoprocessing operation
+
+## 3.0.0-alpha-2
+
+- Add RasterGroupedCount and RasterGroupedAverage geoprocessing operations
+
+## 3.0.0-alpha
+
+- Create an Akka HTTP server project in preparation for using the GeoTrellis
+collections API and removing Spark Job Server.
+
 ## 2.1.0
 
 - Standardize incoming geometries to `MapshedJob`, to account for any subtle

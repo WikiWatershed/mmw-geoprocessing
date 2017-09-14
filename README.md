@@ -1,5 +1,7 @@
 # mmw-geoprocessing
 
+[![Build Status](https://travis-ci.org/WikiWatershed/mmw-geoprocessing.svg?branch=develop)](https://travis-ci.org/WikiWatershed/mmw-geoprocessing)
+
 A [Spark Job Server](https://github.com/spark-jobserver/spark-jobserver) job for Model My Watershed geoprocessing.
 
 ## Usage
@@ -64,6 +66,7 @@ Deployments to GitHub Releases are handled through [Travis-CI](https://travis-ci
 $ git flow release start 0.1.0
 $ vim CHANGELOG.md
 $ vim project/build.scala
+$ git add CHANGELOG.md project/build.scala
 $ git commit -m "0.1.0"
 $ git flow release publish 0.1.0
 $ git flow release finish 0.1.0

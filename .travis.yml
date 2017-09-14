@@ -1,29 +1,16 @@
-sudo: required
-
 language: scala
-
-services:
-  - docker
-
-cache:
-  directories:
-    - $HOME/.ivy2/cache
-    - $HOME/.sbt/boot/
+jdk:
+  - openjdk8
 
 script:
-  - /bin/true
-
-before_deploy:
-  - mkdir -p ${HOME}/.sbt
-  - docker run -v ${HOME}/.ivy2:/root/.ivy2 -v ${HOME}/.sbt:/root/.sbt -v ${PWD}:/mmw-geoprocessing -w /mmw-geoprocessing quay.io/azavea/scala:2.10.5 ./sbt assembly
-  - sudo chown ${USER} summary/target/scala-2.10/mmw-geoprocessing-assembly-${TRAVIS_TAG}.jar
+  - ./scripts/cibuild
 
 deploy:
   provider: releases
   api_key:
     secure: FSDDAJVrtzmlHXKlEIo3EWh/p2eLujs13UpLsDYkJHJl+kvdsEvtgsq6tpkLucesJiiFXm/p+W9fzbZHh7Z48TrIWNPts6Mqh6FPH8XSSXHT+TqdVTL6XbgVs6HFx7sYip/h5PEDsGdJHWPVH1B9JXFusovNrZWNl/jo4dqrR9j6LdV8qx1qxrqYb5ZfjhT+hKhTO5rFPIxbT5exjJ4H46u8oQr0vdRwQK6nZiZYXtxFwkuePHQvFtbMOfJDRby2+vhoW/rqhyB8ptKR0sZHvoCnAo3kBuyrCVUA3qm77ZSI3CO5iuK+LZL8VLQScwErAQVlCSuaovnKehkrtVqGvEXVR/x9Ycqhe8Ha4Cb827CTMW25Kmml0hYEt6kVmWHIh590JXMkRxCSVlPQc9Gi/ZCJ5w69vdxIDWCty9qilewxhYdG9k+5zcWVYfMJhu7Kou8SKJ5Ae5eh7u9T9U2WOMoR3hNSa6rCTtrsruUGLgjb7/efYeBMyUlrQdb6CHp0pB7dxPzy+kk6ukThnMh0pGOMGjChtYbgoTk0xyhwyP073AiYTDZG/wKZFkqFQC2qGgoCv8lsWqtbFouv/dHKzIIYUNHHfgwER6peuZlrOTL9ujbUWXId6BRIJYX2C/h8+7kiDk+CYu8W4xOzA6lsZk/YGDO3U0YX34FVpjyCJNg=
   file:
-    - summary/target/scala-2.10/mmw-geoprocessing-assembly-${TRAVIS_TAG}.jar
+    - api/target/scala-2.11/api-assembly-${TRAVIS_TAG}.jar
   skip_cleanup: true
   on:
     repo: WikiWatershed/mmw-geoprocessing
