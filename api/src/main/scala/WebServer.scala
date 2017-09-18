@@ -32,27 +32,32 @@ object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
 }
 
-object WebServer extends HttpApp with App with LazyLogging with Geoprocessing {
+object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with ErrorHandler {
   import PostRequestProtocol._
 
+  @throws(classOf[InvalidOperationException])
   def routes: Route =
-    get {
-      path("ping") {
-        complete("pong")
-      }
-    } ~
-    post {
-      path("run") {
-        entity(as[PostRequest]) { data =>
-          data.input.operationType match {
-            case "RasterGroupedCount" =>
-              complete(getRasterGroupedCount(data.input))
-            case "RasterGroupedAverage" =>
-              complete(getRasterGroupedAverage(data.input))
-            case "RasterLinesJoin" =>
-              complete(getRasterLinesJoin(data.input))
-            case _ =>
-              throw new Exception(s"Unknown operationType: ${data.input.operationType}")
+    handleExceptions(geoprocessingExceptionHandler) {
+      get {
+        path("ping") {
+          complete("pong")
+        }
+      } ~
+      post {
+        path("run") {
+          entity(as[PostRequest]) { data =>
+            data.input.operationType match {
+              case "RasterGroupedCount" =>
+                complete(getRasterGroupedCount(data.input))
+              case "RasterGroupedAverage" =>
+                complete(getRasterGroupedAverage(data.input))
+              case "RasterLinesJoin" =>
+                complete(getRasterLinesJoin(data.input))
+              case _ => {
+                val message = s"Unknown operationType: ${data.input.operationType}"
+                throw new InvalidOperationException(message)
+              }
+            }
           }
         }
       }

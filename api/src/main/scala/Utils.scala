@@ -153,11 +153,12 @@ trait Utils {
     * @param   crs  The key (e.g. "input.rasterCRS")
     * @return       A CRS
     */
+  @throws(classOf[UnknownCRSException])
   def getCRS(crs: String): CRS = crs match {
     case "LatLng" => LatLng
     case "WebMercator" => WebMercator
     case "ConusAlbers" => ConusAlbers
-    case s: String => throw new Exception(s"Unknown CRS: $s")
+    case s: String => throw new UnknownCRSException(s)
   }
 
   /**
