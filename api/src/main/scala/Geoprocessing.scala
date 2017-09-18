@@ -36,14 +36,14 @@ trait Geoprocessing extends Utils {
     * @param   input  The InputData
     * @return         A histogram of results
     */
+  @throws(classOf[MissingTargetRasterException])
   def getRasterGroupedAverage(input: InputData): Future[ResultDouble] = {
     val aoi = createAOIFromInput(input)
     val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
     val targetLayer = input.targetRaster match {
       case Some(targetRaster) =>
         cropSingleRasterToAOI(targetRaster, input.zoom, aoi)
-      case None =>
-        throw new Exception("Request data missing required 'targetRaster'.")
+      case None => throw new MissingTargetRasterException
     }
     val opts = getRasterizerOptions(input.pixelIsArea)
 
@@ -62,6 +62,8 @@ trait Geoprocessing extends Utils {
     * @param   input  The InputData
     * @return         A histogram of results
     */
+  @throws(classOf[MissingVectorException])
+  @throws(classOf[MissingVectorCRSException])
   def getRasterLinesJoin(input: InputData): Future[ResultInt] = {
     val aoi = createAOIFromInput(input)
     val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
@@ -70,11 +72,9 @@ trait Geoprocessing extends Utils {
         input.vectorCRS match {
           case Some(crs) =>
             createMultiLineFromInput(vector, crs, input.rasterCRS)
-          case None =>
-            throw new Exception("Request data missing required 'vectorCRS'.")
+          case None => throw new MissingVectorCRSException
         }
-      case None =>
-        throw new Exception("Request data missing required 'vector'.")
+      case None => throw new MissingVectorException
     }
 
     futureLayers.map { rasterLayers =>
