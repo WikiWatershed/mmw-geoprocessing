@@ -71,7 +71,8 @@ trait Geoprocessing extends Utils {
       case Some(vector) =>
         input.vectorCRS match {
           case Some(crs) =>
-            createMultiLineFromInput(vector, crs, input.rasterCRS)
+            cropLinesToAOI(
+              createMultiLineFromInput(vector, crs, input.rasterCRS), aoi)
           case None => throw new MissingVectorCRSException
         }
       case None => throw new MissingVectorException
