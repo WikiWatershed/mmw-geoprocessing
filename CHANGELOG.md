@@ -1,3 +1,7 @@
+## 3.0.0
+
+- Crop lines to area of interest in RasterLinesJoin
+
 ## 3.0.0-beta-3
 
 - Add optional boolean parameter `pixelIsArea` which can be used

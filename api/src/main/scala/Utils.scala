@@ -147,17 +147,30 @@ trait Utils {
   }
 
   /**
+    * Given a sequence of MultiLines and an area of interest, crops the lines
+    * to the area of interest and returns a sequence containing the cropped lines.
+    *
+    * @param   lines  A sequence of MultiLines
+    * @param   aoi    Area of Interest
+    * @return         A sequence of MultiLines that intersect with the Area of Interest
+    */
+  def cropLinesToAOI(lines: Seq[MultiLine], aoi: MultiPolygon): Seq[MultiLine] = {
+    lines.flatMap(line => (line & aoi).asMultiLine)
+  }
+
+  /**
     * For a given config and CRS key, return one of several recognized
     * [[geotrellis.proj4.CRS]]s, or raise an error.
     *
     * @param   crs  The key (e.g. "input.rasterCRS")
     * @return       A CRS
     */
+  @throws(classOf[UnknownCRSException])
   def getCRS(crs: String): CRS = crs match {
     case "LatLng" => LatLng
     case "WebMercator" => WebMercator
     case "ConusAlbers" => ConusAlbers
-    case s: String => throw new Exception(s"Unknown CRS: $s")
+    case s: String => throw new UnknownCRSException(s)
   }
 
   /**
