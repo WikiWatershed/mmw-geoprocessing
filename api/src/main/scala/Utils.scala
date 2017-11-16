@@ -147,6 +147,18 @@ trait Utils {
   }
 
   /**
+    * Given a sequence of MultiLines and an area of interest, crops the lines
+    * to the area of interest and returns a sequence containing the cropped lines.
+    *
+    * @param   lines  A sequence of MultiLines
+    * @param   aoi    Area of Interest
+    * @return         A sequence of MultiLines that intersect with the Area of Interest
+    */
+  def cropLinesToAOI(lines: Seq[MultiLine], aoi: MultiPolygon): Seq[MultiLine] = {
+    lines.flatMap(line => (line & aoi).asMultiLine)
+  }
+
+  /**
     * For a given config and CRS key, return one of several recognized
     * [[geotrellis.proj4.CRS]]s, or raise an error.
     *

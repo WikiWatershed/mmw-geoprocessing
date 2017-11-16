@@ -22,6 +22,7 @@ huc8_file = 'RasterGroupedCount_Schuylkill_HUC08.json'
 huc10_file = 'RasterGroupedCount_LowerSchuylkillRiver_HUC10.json'
 huc12_file = 'RasterGroupedCount_LittleNeshaminy_HUC12.json'
 rga_file = 'RasterGroupedAverage.json'
+rlj_file = 'RasterLinesJoin_Schuylkill_HUC08.json'
 
 def make_rga_request(input_file, operation_name):
     print("Timing {} ->\n".format(operation_name))
@@ -60,6 +61,9 @@ def make_rgc_request(input_file, operation_name):
 def time_raster_grouped_average():
     make_rga_request(rga_file, 'RasterGroupedAverage')
 
+def time_raster_lines_join():
+    make_rga_request(rlj_file, 'HUC8 RasterLinesJoin')
+
 def time_huc12():
     make_rgc_request(huc12_file, 'HUC12 RasterGroupedCount')
 
@@ -79,10 +83,13 @@ parser.add_argument('--huc12', help='Time a HUC12 with 1-3 layers',
                     action='store_true')
 parser.add_argument('--rga', help='Time a RasterGroupedAverage operation',
                     action='store_true')
+parser.add_argument('--rlj', help='Time a RasterLinesJoin operation',
+                    action='store_true')
 
 args = vars(parser.parse_args(sys.argv[1:]))
 
 if True not in args.values():
+    time_raster_lines_join()
     time_raster_grouped_average()
     time_huc12()
     time_huc10()
@@ -92,3 +99,4 @@ else:
     if args['huc10']: time_huc10()
     if args['huc12']: time_huc12()
     if args['rga']: time_raster_grouped_average()
+    if args['rlj']: time_raster_lines_join()
