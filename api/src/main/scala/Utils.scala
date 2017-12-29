@@ -1,5 +1,7 @@
 package org.wikiwatershed.mmw.geoprocessing
 
+import java.util.function.DoubleBinaryOperator
+
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -205,4 +207,24 @@ trait Utils {
       .query[SpatialKey, Tile, TileLayerMetadata[SpatialKey]](layerId)
       .where(Intersects(shape))
       .result
+
+  class MinWithoutNoData extends DoubleBinaryOperator {
+    override def applyAsDouble(left: Double, right: Double): Double =
+      (left, right) match {
+        case (`doubleNODATA`, `doubleNODATA`) => Double.MaxValue
+        case (`doubleNODATA`, r) => r
+        case (l, `doubleNODATA`) => l
+        case (l, r) => math.min(l, r)
+      }
+  }
+
+  class MaxWithoutNoData extends DoubleBinaryOperator {
+    override def applyAsDouble(left: Double, right: Double): Double =
+      (left, right) match {
+        case (`doubleNODATA`, `doubleNODATA`) => Double.MinValue
+        case (`doubleNODATA`, r) => r
+        case (l, `doubleNODATA`) => l
+        case (l, r) => math.max(l, r)
+      }
+  }
 }
