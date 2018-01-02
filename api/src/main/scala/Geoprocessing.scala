@@ -1,6 +1,6 @@
 package org.wikiwatershed.mmw.geoprocessing
 
-import java.util.concurrent.atomic.{LongAdder, DoubleAdder}
+import java.util.concurrent.atomic.{LongAdder, DoubleAdder, DoubleAccumulator}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -80,6 +80,24 @@ trait Geoprocessing extends Utils {
 
     futureLayers.map { rasterLayers =>
       ResultInt(rasterLinesJoin(rasterLayers, lines))
+    }
+  }
+
+
+  /**
+    * For an InputData object, returns a sequence of maps of min, avg, and max
+    * values for each raster, in the order of the input rasters
+    *
+    * @param   input  The InputData
+    * @return         Seq of map of min, avg, and max values
+    */
+  def getRasterSummary(input: InputData): Future[ResultSummary] = {
+    val aoi = createAOIFromInput(input)
+    val futureLayers = cropRastersToAOI(input.rasters, input.zoom, aoi)
+    val opts = getRasterizerOptions(input.pixelIsArea)
+
+    futureLayers.map { layers =>
+      ResultSummary(rasterSummary(layers, aoi, opts))
     }
   }
 
@@ -248,5 +266,68 @@ trait Geoprocessing extends Utils {
       .mapValues(_.sum().toInt)
       .map { case (k, v) => k.toString -> v}
       .toMap
+  }
+
+  type RasterSummary = (DoubleAccumulator, DoubleAdder, DoubleAccumulator, LongAdder)
+
+  /**
+    * From a list of rasters and a shape, return a list of maps containing min,
+    * avg, and max values of those rasters.
+    *
+    * @param   rasterLayers  A sequence of TileLayerCollections
+    * @param   multiPolygon  The AOI as a MultiPolygon
+    * @return                A Seq of Map of min, avg, and max values
+    */
+  private def rasterSummary(
+    rasterLayers: Seq[TileLayerCollection[SpatialKey]],
+    multiPolygon: MultiPolygon,
+    opts: Rasterizer.Options
+  ): Seq[Map[String, Double]] = {
+    val update = (newValue: Double, rasterSummary: RasterSummary) => {
+      rasterSummary match {
+        case (min, sum, max, count) =>
+          min.accumulate(newValue)
+          sum.add(newValue)
+          max.accumulate(newValue)
+          count.increment()
+      }
+    }
+
+    val init = () => (
+      new DoubleAccumulator(new MinWithoutNoData, Double.MaxValue),
+      new DoubleAdder,
+      new DoubleAccumulator(new MaxWithoutNoData, Double.MinValue),
+      new LongAdder
+    )
+
+    // assume all layouts are the same
+    val metadata = rasterLayers.head.metadata
+
+    val layerSummaries: TrieMap[Int, RasterSummary] = TrieMap.empty
+
+    joinCollectionLayers(rasterLayers).par
+      .foreach({ case (key, tiles) =>
+        val extent = metadata.mapTransform(key)
+        val re = RasterExtent(extent, metadata.tileLayout.tileCols, metadata.tileLayout.tileRows)
+
+        Rasterizer.foreachCellByMultiPolygon(multiPolygon, re, opts) { case (col, row) =>
+          val pixels: List[Double] = tiles.map(_.getDouble(col, row)).toList
+          pixels.zipWithIndex.foreach { case (pixel, index) =>
+            val rasterSummary = layerSummaries.getOrElseUpdate(index, init())
+            update(pixel, rasterSummary)
+          }
+        }
+      })
+
+    layerSummaries
+      .toSeq
+      .sortBy(_._1)
+      .map { case (_, (min, sum, max, count)) =>
+        Map(
+          "min" -> min.get(),
+          "avg" -> sum.sum() / count.sum(),
+          "max" -> max.get()
+        )
+      }
   }
 }

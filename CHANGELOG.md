@@ -1,3 +1,9 @@
+## 3.1.0
+
+- Add RasterSummary operation that, given a shape and a list
+  of rasters, returns the min, avg, and max value for those
+  rasters within that shape.
+
 ## 3.0.0
 
 - Crop lines to area of interest in RasterLinesJoin
