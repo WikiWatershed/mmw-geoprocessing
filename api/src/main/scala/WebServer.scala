@@ -24,12 +24,14 @@ case class InputData(
 case class PostRequest(input: InputData)
 case class ResultInt(result: Map[String, Int])
 case class ResultDouble(result: Map[String, Double])
+case class ResultSummary(result: Seq[Map[String, Double]])
 
 object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val inputFormat = jsonFormat10(InputData)
   implicit val postFormat = jsonFormat1(PostRequest)
   implicit val resultFormat = jsonFormat1(ResultInt)
   implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
+  implicit val resultSummaryFormat = jsonFormat1(ResultSummary)
 }
 
 object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with ErrorHandler {
@@ -53,6 +55,8 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
                 complete(getRasterGroupedAverage(data.input))
               case "RasterLinesJoin" =>
                 complete(getRasterLinesJoin(data.input))
+              case "RasterSummary" =>
+                complete(getRasterSummary(data.input))
               case _ => {
                 val message = s"Unknown operationType: ${data.input.operationType}"
                 throw new InvalidOperationException(message)
