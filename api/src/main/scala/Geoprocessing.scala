@@ -919,11 +919,49 @@ trait Geoprocessing extends Utils {
     )
   )
 
-  def getMultiOperations(input: MultiInput): Map[String, Map[String, Map[String, Double]]] =
+  @throws(classOf[MissingStreamLinesException])
+  @throws(classOf[MissingTargetRasterException])
+  def getMultiOperations(input: MultiInput): Map[String, Map[String, Map[String, Double]]] = {
+    val hucs = input.shapes.map(huc => huc.id -> normalizeHuc(huc))
+    val rasters = collectRastersForInput(input, hucs.map(_._2))
+    val cachedOpts = input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
+
+    hucs.map(huc => huc._1 -> input.operations.map(op => {
+      val shape = huc._2
+      val opts = cachedOpts(op)
+      val layers = op.rasters.map(r => rasters(r))
+      val result = op.name match {
+        case "RasterGroupedCount" =>
+          rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+        case "RasterGroupedAverage" => {
+          op.targetRaster match {
+            case Some(tr) =>
+              if (layers.isEmpty) rasterAverage(rasters(tr), shape, opts)
+              else rasterGroupedAverage(layers, rasters(tr), shape, opts)
+            case None =>
+              throw new MissingTargetRasterException
+          }
+        }
+        case "RasterLinesJoin" => {
+          input.streamLines match {
+            case Some(mls) => {
+              val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
+              rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+            }
+            case None =>
+              throw new MissingStreamLinesException
+          }
+        }
+      }
+
+      op.label -> result
+    }).toMap).toMap
+
     // TODO Replace mock response with actual code
     input.shapes.map(huc => huc.id -> input.operations.map(op =>
       op.label -> mocks(op.label)
     ).toMap).toMap
+  }
 
   /**
     * For an InputData object, return a histogram of raster grouped count results.
