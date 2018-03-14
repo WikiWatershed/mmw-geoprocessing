@@ -23,6 +23,11 @@ trait Utils {
   val s3bucket = ConfigFactory.load().getString("geoprocessing.s3bucket")
   val baseLayerReader = S3CollectionLayerReader(s3bucket, "")
 
+  def sequenceMap[K, V](m: Map[K, Future[V]]): Future[Map[K, V]] = {
+    val tuples = m.map { case (k, f) => f.map(v => k -> v)}
+    Future.sequence(tuples).map(_.toMap)
+  }
+
   /**
     * Given a zoom level & area of interest, transform a list of raster
     * filenames into a [[TileLayerCollection[SpatialKey]]].

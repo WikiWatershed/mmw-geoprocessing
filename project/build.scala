@@ -65,7 +65,8 @@ object Geoprocessing extends Build {
 
   val resolutionRepos = Seq(
     Resolver.bintrayRepo("scalaz", "releases"),
-    "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main"
+    "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main",
+    "Job Server Bintray" at "https://dl.bintray.com/spark-jobserver/maven"
   )
 
   val defaultAssemblySettings =
@@ -104,7 +105,8 @@ object Geoprocessing extends Build {
         "com.typesafe.akka" %% "akka-http-spray-json" % Version.akkaHttpVersion,
         "org.scalatest" %% "scalatest" % Version.scalatest % "test",
         "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion,
-        "org.apache.spark" %% "spark-core" % Version.sparkCoreVersion
+        "org.apache.spark" %% "spark-core" % Version.sparkCoreVersion,
+        "org.typelevel" %% "cats-core" % "1.0.1"
       )
     ) ++
   defaultAssemblySettings

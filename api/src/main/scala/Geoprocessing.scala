@@ -12,12 +12,14 @@ import geotrellis.vector._
 
 import geotrellis.spark._
 
+import cats.implicits._
+
 trait Geoprocessing extends Utils {
 
   @throws(classOf[MissingStreamLinesException])
   @throws(classOf[MissingTargetRasterException])
-  def getMultiOperations(input: MultiInput): Future[Map[HID, Map[OPID, Map[String, Double]]]] = {
-    val hucs = input.shapes.map(huc => huc.id -> normalizeHuc(huc))
+  def getMultiOperations(input: MultiInput): Future[Map[String, Map[String, Map[String, Double]]]] = {
+    val hucs = input.shapes.map(huc => huc.id -> normalizeHuc(huc)).toMap
 
     // val rasters = collectRastersForInput(input, hucs.map(_._2))
     val futureRasters: Map[String, Future[TileLayerCollection[SpatialKey]]] = {
@@ -33,58 +35,57 @@ trait Geoprocessing extends Utils {
     // Note: Op is to be avoided naming because ... well everything is an Op of some kind
     val cachedOpts = input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
 
-    val x = hucs.mapValues { shape =>
-      input.operations.map { op =>
-        val opts = cachedOpts(op)
-        //val layers = op.rasters.map(r => rasters(r))
-        val futureLayers: Future[List[TileLayerCollection[SpatialKey]]] =
-          Future.sequence(op.rasters.map(futureRasters(_)))
-        val futureTargetLayer =
-          Future.sequence(op.targetRaster.toList.map(futureRasters(_)))
+    val result0: Map[String, Map[String, Future[Map[String,Double]]]] = 
+      hucs.mapValues { shape =>
+        input.operations
+          .map(op => op.label -> op).toMap
+          .mapValues { op =>
+            val opts = cachedOpts(op)
+            
+            val futureLayers: Future[List[TileLayerCollection[SpatialKey]]] =
+              op.rasters.map(futureRasters(_)).sequence
+            val futureTargetLayer =
+              op.targetRaster.map(futureRasters(_)).sequence
 
-        for {
-          layers <- futureLayers
-          targetLayer <- futureTargetLayer
-        } yield {
-          val result = op.name match {
-            case "RasterGroupedCount" =>
-              rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+            for {
+              layers <- futureLayers
+              targetLayer <- futureTargetLayer
+            } yield {
+              op.name match {
+                case "RasterGroupedCount" =>
+                  rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
 
-            case "RasterGroupedAverage" =>
-              targetLayer match {
-                case List(tl) =>
-                  if (layers.isEmpty) rasterAverage(tl, shape, opts)
-                  else rasterGroupedAverage(layers, tl, shape, opts)
-                case Nil =>
-                  throw new MissingTargetRasterException
+                case "RasterGroupedAverage" =>
+                  targetLayer match {
+                    case Some(tl) =>
+                      if (layers.isEmpty) rasterAverage(tl, shape, opts)
+                      else rasterGroupedAverage(layers, tl, shape, opts)
+                    case None =>
+                      throw new MissingTargetRasterException
+                  }
+
+                case "RasterLinesJoin" =>
+                  input.streamLines match {
+                    case Some(mls) => {
+                      val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
+                      rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+                    }
+                    case None =>
+                      throw new MissingStreamLinesException
+                  }
               }
-
-            case "RasterLinesJoin" =>
-            input.streamLines match {
-              case Some(mls) => {
-                val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
-                rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
-              }
-              case None =>
-                throw new MissingStreamLinesException
             }
           }
-
-          op.label -> result
-        }
       }
-    }
+    
 
-    val y: Seq[Future[(HID, Map[OPID, Map[String, Double]])]] = x.map { case (hid, futures) => {
-      val w: Future[List[(OPID, Map[String, Double])]] = Future.sequence(futures)
-      val z = w.map { w1 => hid -> w1.toMap }
+    val result1: Map[String, Future[Map[String,Map[String,Double]]]] = 
+      result0.map { case (k, v) => k -> sequenceMap(v) }
 
-      z
-    }}
-
-    val t = Future.sequence(y).map { _.toMap }
-
-    t
+    val result2: Future[Map[String,Map[String,Map[String,Double]]]] = 
+      sequenceMap(result1)
+    
+    result2
   }
 
   /**
