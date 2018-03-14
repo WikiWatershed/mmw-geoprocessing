@@ -16,41 +16,75 @@ trait Geoprocessing extends Utils {
 
   @throws(classOf[MissingStreamLinesException])
   @throws(classOf[MissingTargetRasterException])
-  def getMultiOperations(input: MultiInput): Map[String, Map[String, Map[String, Double]]] = {
+  def getMultiOperations(input: MultiInput): Future[Map[HID, Map[OPID, Map[String, Double]]]] = {
     val hucs = input.shapes.map(huc => huc.id -> normalizeHuc(huc))
-    val rasters = collectRastersForInput(input, hucs.map(_._2))
+
+    // val rasters = collectRastersForInput(input, hucs.map(_._2))
+    val futureRasters: Map[String, Future[TileLayerCollection[SpatialKey]]] = {
+    val shapes = hucs.map(_._2)
+    val aoi = shapes.unionGeometries.asMultiPolygon.get
+    val ops = input.operations
+    val rasterIds = ops.flatMap(_.targetRaster) ++ ops.flatMap(_.rasters)
+
+      rasterIds.distinct.map { rid =>
+        rid -> Future(cropSingleRasterToAOI(rid, 0, aoi))
+      }.toMap
+    }
+    // Note: Op is to be avoided naming because ... well everything is an Op of some kind
     val cachedOpts = input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
 
-    hucs.map(huc => huc._1 -> input.operations.map(op => {
-      val shape = huc._2
-      val opts = cachedOpts(op)
-      val layers = op.rasters.map(r => rasters(r))
-      val result = op.name match {
-        case "RasterGroupedCount" =>
-          rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
-        case "RasterGroupedAverage" => {
-          op.targetRaster match {
-            case Some(tr) =>
-              if (layers.isEmpty) rasterAverage(rasters(tr), shape, opts)
-              else rasterGroupedAverage(layers, rasters(tr), shape, opts)
-            case None =>
-              throw new MissingTargetRasterException
-          }
-        }
-        case "RasterLinesJoin" => {
-          input.streamLines match {
-            case Some(mls) => {
-              val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
-              rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+    val x = hucs.mapValues { shape =>
+      input.operations.map { op =>
+        val opts = cachedOpts(op)
+        //val layers = op.rasters.map(r => rasters(r))
+        val futureLayers: Future[List[TileLayerCollection[SpatialKey]]] =
+          Future.sequence(op.rasters.map(futureRasters(_)))
+        val futureTargetLayer =
+          Future.sequence(op.targetRaster.toList.map(futureRasters(_)))
+
+        for {
+          layers <- futureLayers
+          targetLayer <- futureTargetLayer
+        } yield {
+          val result = op.name match {
+            case "RasterGroupedCount" =>
+              rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+
+            case "RasterGroupedAverage" =>
+              targetLayer match {
+                case List(tl) =>
+                  if (layers.isEmpty) rasterAverage(tl, shape, opts)
+                  else rasterGroupedAverage(layers, tl, shape, opts)
+                case Nil =>
+                  throw new MissingTargetRasterException
+              }
+
+            case "RasterLinesJoin" =>
+            input.streamLines match {
+              case Some(mls) => {
+                val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
+                rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+              }
+              case None =>
+                throw new MissingStreamLinesException
             }
-            case None =>
-              throw new MissingStreamLinesException
           }
+
+          op.label -> result
         }
       }
+    }
 
-      op.label -> result
-    }).toMap).toMap
+    val y: Seq[Future[(HID, Map[OPID, Map[String, Double]])]] = x.map { case (hid, futures) => {
+      val w: Future[List[(OPID, Map[String, Double])]] = Future.sequence(futures)
+      val z = w.map { w1 => hid -> w1.toMap }
+
+      z
+    }}
+
+    val t = Future.sequence(y).map { _.toMap }
+
+    t
   }
 
   /**
