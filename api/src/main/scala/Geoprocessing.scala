@@ -18,33 +18,33 @@ trait Geoprocessing extends Utils {
 
   @throws(classOf[MissingStreamLinesException])
   @throws(classOf[MissingTargetRasterException])
-  def getMultiOperations(input: MultiInput): Future[Map[String, Map[String, Map[String, Double]]]] = {
-    val hucs = input.shapes.map(huc => huc.id -> normalizeHuc(huc)).toMap
+  def getMultiOperations(input: MultiInput): Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = {
+    val hucs: Map[HucID, MultiPolygon] =
+      input.shapes.map(huc => huc.id -> normalizeHuc(huc)).toMap
 
-    // val rasters = collectRastersForInput(input, hucs.map(_._2))
-    val futureRasters: Map[String, Future[TileLayerCollection[SpatialKey]]] = {
-    val shapes = hucs.map(_._2)
-    val aoi = shapes.unionGeometries.asMultiPolygon.get
-    val ops = input.operations
-    val rasterIds = ops.flatMap(_.targetRaster) ++ ops.flatMap(_.rasters)
+    val futureRasters: Map[RasterID, Future[RasterLayer]] = {
+      val aoi = hucs.values.unionGeometries.asMultiPolygon.get
+      val ops = input.operations
+      val rasterIds = ops.flatMap(_.targetRaster) ++ ops.flatMap(_.rasters)
 
       rasterIds.distinct.map { rid =>
         rid -> Future(cropSingleRasterToAOI(rid, 0, aoi))
       }.toMap
     }
-    // Note: Op is to be avoided naming because ... well everything is an Op of some kind
-    val cachedOpts = input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
 
-    val result0: Map[String, Map[String, Future[Map[String,Double]]]] = 
+    val cachedOpts: Map[Operation, Rasterizer.Options] =
+      input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
+
+    val result0: Map[HucID, Map[OperationID, Future[Map[String, Double]]]] = {
       hucs.mapValues { shape =>
         input.operations
           .map(op => op.label -> op).toMap
           .mapValues { op =>
             val opts = cachedOpts(op)
-            
-            val futureLayers: Future[List[TileLayerCollection[SpatialKey]]] =
+
+            val futureLayers: Future[List[RasterLayer]] =
               op.rasters.map(futureRasters(_)).sequence
-            val futureTargetLayer =
+            val futureTargetLayer: Future[Option[RasterLayer]] =
               op.targetRaster.map(futureRasters(_)).sequence
 
             for {
@@ -77,14 +77,14 @@ trait Geoprocessing extends Utils {
             }
           }
       }
-    
+    }
 
-    val result1: Map[String, Future[Map[String,Map[String,Double]]]] = 
-      result0.map { case (k, v) => k -> sequenceMap(v) }
+    val result1: Map[HucID, Future[Map[OperationID, Map[String, Double]]]] =
+      result0.mapValues(liftFuture)
 
-    val result2: Future[Map[String,Map[String,Map[String,Double]]]] = 
-      sequenceMap(result1)
-    
+    val result2: Future[Map[HucID, Map[OperationID, Map[String, Double]]]] =
+      liftFuture(result1)
+
     result2
   }
 

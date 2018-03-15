@@ -23,7 +23,13 @@ trait Utils {
   val s3bucket = ConfigFactory.load().getString("geoprocessing.s3bucket")
   val baseLayerReader = S3CollectionLayerReader(s3bucket, "")
 
-  def sequenceMap[K, V](m: Map[K, Future[V]]): Future[Map[K, V]] = {
+  /**
+    * Given a map from a key to a future of a value, returns a future
+    * of a map from the key to the value. Useful for transforming delayed
+    * nested results (such as those that depend on fetching tiles) into
+    * a future response for Akka Http.
+    */
+  def liftFuture[K, V](m: Map[K, Future[V]]): Future[Map[K, V]] = {
     val tuples = m.map { case (k, f) => f.map(v => k -> v)}
     Future.sequence(tuples).map(_.toMap)
   }
