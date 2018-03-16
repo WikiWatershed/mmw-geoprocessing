@@ -24,6 +24,21 @@ huc12_file = 'RasterGroupedCount_LittleNeshaminy_HUC12.json'
 rga_file = 'RasterGroupedAverage.json'
 rlj_file = 'RasterLinesJoin_Schuylkill_HUC08.json'
 rs_file = 'RasterSummary_Schuylkill_HUC08.json'
+multi_file = 'MultiOperationRequest.json'
+
+def make_multi_request(input_file, operation_name):
+    print("Timing {} ->\n".format(operation_name))
+    elapsed_counts = []
+    for request_number in range(5):
+        with open("{}/{}".format(input_data_dir, input_file)) as data:
+            elapsed = requests.post('http://localhost:8090/multi', data=data,
+                                    headers=headers).elapsed.total_seconds()
+            elapsed_counts.append(elapsed)
+            print("{}, run {} -> {} s".format(operation_name,
+                                              request_number + 1, elapsed))
+
+    operation_average = sum(elapsed_counts) / len(elapsed_counts)
+    print("\n{} average -> {} s\n".format(operation_name, operation_average))
 
 def make_rga_request(input_file, operation_name):
     print("Timing {} ->\n".format(operation_name))
@@ -77,6 +92,9 @@ def time_huc10():
 def time_huc8():
     make_rgc_request(huc8_file, 'HUC8 RasterGroupedCount')
 
+def time_multi():
+    make_multi_request(multi_file, 'HUC8 MultiOperation')
+
 parser = argparse.ArgumentParser(description='Test Geoprocessing service \
     response times for RasterGroupedCount, RasterGroupedAverage, and \
     RasterSummary operations.')
@@ -93,6 +111,8 @@ parser.add_argument('--rlj', help='Time a RasterLinesJoin operation',
                     action='store_true')
 parser.add_argument('--rs', help='Time a RasterSummary operation',
                     action='store_true')
+parser.add_argument('--multi', help='Time a MultiOperation request',
+                    action='store_true')
 
 args = vars(parser.parse_args(sys.argv[1:]))
 
@@ -103,6 +123,7 @@ if True not in args.values():
     time_huc12()
     time_huc10()
     time_huc8()
+    time_multi()
 else:
     if args['huc8']: time_huc8()
     if args['huc10']: time_huc10()
@@ -110,3 +131,4 @@ else:
     if args['rga']: time_raster_grouped_average()
     if args['rlj']: time_raster_lines_join()
     if args['rs']: time_raster_summary()
+    if args['multi']: time_multi()
