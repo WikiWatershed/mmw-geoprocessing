@@ -19,73 +19,74 @@ trait Geoprocessing extends Utils {
   @throws(classOf[MissingStreamLinesException])
   @throws(classOf[MissingTargetRasterException])
   def getMultiOperations(input: MultiInput): Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = {
+
     val hucs: Map[HucID, MultiPolygon] =
       input.shapes.map(huc => huc.id -> normalizeHuc(huc)).toMap
 
-    val futureRasters: Map[RasterID, Future[RasterLayer]] = {
-      val aoi = hucs.values.unionGeometries.asMultiPolygon.get
-      val ops = input.operations
-      val rasterIds = ops.flatMap(_.targetRaster) ++ ops.flatMap(_.rasters)
+    val aoi = hucs.values.unionGeometries.asMultiPolygon.get
 
-      rasterIds.distinct.map { rid =>
-        rid -> Future(cropSingleRasterToAOI(rid, 0, aoi))
-      }.toMap
-    }
+    val rasterIds =
+      (input.operations.flatMap(_.targetRaster) ++ input.operations.flatMap(_.rasters)).distinct
 
     val cachedOpts: Map[Operation, Rasterizer.Options] =
       input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
 
-    val result0: Map[HucID, Map[OperationID, Future[Map[String, Double]]]] = {
-      hucs.mapValues { shape =>
-        input.operations
-          .map(op => op.label -> op).toMap
-          .mapValues { op =>
-            val opts = cachedOpts(op)
+    val futureRasters: Map[RasterID, Future[RasterLayer]] =
+      rasterIds.map { rid =>
+        rid -> Future(cropSingleRasterToAOI(rid, 0, aoi))
+      }.toMap
 
-            val futureLayers: Future[List[RasterLayer]] =
-              op.rasters.map(futureRasters(_)).sequence
-            val futureTargetLayer: Future[Option[RasterLayer]] =
-              op.targetRaster.map(futureRasters(_)).sequence
+    val tabular: Future[List[(HucID, OperationID, Map[String,Double])]] = Future.sequence {
+      (input.shapes, input.operations).mapN { case (huc, op) =>
+        val shape = hucs(huc.id)
+        val opts = cachedOpts(op)
 
-            for {
-              layers <- futureLayers
-              targetLayer <- futureTargetLayer
-            } yield {
-              op.name match {
-                case "RasterGroupedCount" =>
-                  rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+        val futureLayers: Future[List[RasterLayer]] =
+          op.rasters.map(futureRasters(_)).sequence
 
-                case "RasterGroupedAverage" =>
-                  targetLayer match {
-                    case Some(tl) =>
-                      if (layers.isEmpty) rasterAverage(tl, shape, opts)
-                      else rasterGroupedAverage(layers, tl, shape, opts)
-                    case None =>
-                      throw new MissingTargetRasterException
-                  }
+        val futureTargetLayer: Future[Option[RasterLayer]] =
+          op.targetRaster.map(futureRasters(_)).sequence
 
-                case "RasterLinesJoin" =>
-                  input.streamLines match {
-                    case Some(mls) => {
-                      val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
-                      rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
-                    }
-                    case None =>
-                      throw new MissingStreamLinesException
-                  }
+        for {
+          layers <- futureLayers
+          targetLayer <- futureTargetLayer
+        } yield {
+          val results = op.name match {
+            case "RasterGroupedCount" =>
+              rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+
+            case "RasterGroupedAverage" =>
+              targetLayer match {
+                case Some(tl) =>
+                  if (layers.isEmpty) rasterAverage(tl, shape, opts)
+                  else rasterGroupedAverage(layers, tl, shape, opts)
+                case None =>
+                  throw new MissingTargetRasterException
               }
-            }
+
+            case "RasterLinesJoin" =>
+              input.streamLines match {
+                case Some(mls) => {
+                  val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
+                  rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+                }
+                case None =>
+                  throw new MissingStreamLinesException
+              }
           }
+
+          (huc.id, op.label, results)
+        }
       }
     }
 
-    val result1: Map[HucID, Future[Map[OperationID, Map[String, Double]]]] =
-      result0.mapValues(liftFuture)
+    val nested: Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = tabular.map { list =>
+      list.groupBy { case (a, _, _) => a }.mapValues {
+        grouped => grouped.map {case (_, b, c) => (b, c) }.toMap
+      }
+    }
 
-    val result2: Future[Map[HucID, Map[OperationID, Map[String, Double]]]] =
-      liftFuture(result1)
-
-    result2
+    nested
   }
 
   /**
