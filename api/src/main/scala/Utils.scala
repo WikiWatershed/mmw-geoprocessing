@@ -24,17 +24,6 @@ trait Utils {
   val baseLayerReader = S3CollectionLayerReader(s3bucket, "")
 
   /**
-    * Given a map from a key to a future of a value, returns a future
-    * of a map from the key to the value. Useful for transforming delayed
-    * nested results (such as those that depend on fetching tiles) into
-    * a future response for Akka Http.
-    */
-  def liftFuture[K, V](m: Map[K, Future[V]]): Future[Map[K, V]] = {
-    val tuples = m.map { case (k, f) => f.map(v => k -> v)}
-    Future.sequence(tuples).map(_.toMap)
-  }
-
-  /**
     * Given a zoom level & area of interest, transform a list of raster
     * filenames into a [[TileLayerCollection[SpatialKey]]].
     *
@@ -69,28 +58,6 @@ trait Utils {
     fetchCroppedLayer(LayerId(rasterId, zoom), aoi)
 
   /**
-    * Given a MultiInput, fetches all rasters specified anywhere
-    * in the MultiInput, cropped to a union of all the specified
-    * shapes, and maps them to raster names.
-    *
-    * This map can then be used to look up the relevant raster by
-    * an operation at a later time.
-
-    * @param   input  MultiInput including shapes and operations
-    * @return         A map from raster names to cropped raster layers
-    */
-  def collectRastersForInput(
-    input: MultiInput,
-    shapes: Seq[MultiPolygon]
-  ): Map[String, TileLayerCollection[SpatialKey]] = {
-    val aoi = shapes.unionGeometries.asMultiPolygon.get
-    val ops = input.operations
-    val rasterIds = ops.flatMap(_.targetRaster) ++ ops.flatMap(_.rasters)
-
-    rasterIds.distinct.map(r => r -> cropSingleRasterToAOI(r, 0, aoi)).toMap
-  }
-
-  /**
     * Given input data containing a polygonCRS & a raster CRS, transform an
     * input polygon into a multipolygon AOI
     *
@@ -106,20 +73,6 @@ trait Utils {
       .asMultiPolygon
       .get
   }
-
-  /**
-    * Given a MultiInput with a list of shapes, unions all the shapes
-    * together into one MultiPolygon, to be used to fetch rasters for
-    * all the shapes.
-    *
-    * @param    input    MultiInput with shapes
-    * @return            MultiPolygon
-    */
-  def createAOIFromInput(input: MultiInput): MultiPolygon =
-    input.shapes.map(normalizeHuc)
-      .unionGeometries
-      .asMultiPolygon
-      .get
 
   /**
     * Converts a HUC shape into a reprojected and normalized MultiPolygon
