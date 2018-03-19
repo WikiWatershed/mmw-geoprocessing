@@ -29,21 +29,21 @@ case class ResultSummary(result: Seq[Map[String, Double]])
 // HUCs have an id and a shape. The shape is GeoJSON, but we've transmitted
 // them as Strings in the past so we continue to do so here.
 case class HUC (
-  id: String,
-  shape: String // GeoJSON Polygon or MultiPolygon
+  id: HucID,
+  shape: GeoJSONString // GeoJSON Polygon or MultiPolygon
 )
 
 case class Operation (
   name: String, // RasterGroupedCount, RasterGroupedAverage, RasterLinesJoin
-  label: String,
-  rasters: List[String],
-  targetRaster: Option[String],
+  label: OperationID,
+  rasters: List[RasterID],
+  targetRaster: Option[RasterID],
   pixelIsArea: Option[Boolean]
 )
 
 case class MultiInput (
   shapes: List[HUC],
-  streamLines: Option[String], // GeoJSON MultiLineString
+  streamLines: Option[GeoJSONString], // GeoJSON MultiLineString
   operations: List[Operation]
 )
 
