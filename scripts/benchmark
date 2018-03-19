@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Silence pushd and popd
+pushd () {
+    command pushd "$@" > /dev/null
+}
+
+popd () {
+    command popd "$@" > /dev/null
+}
+
+usage() {
+    echo -n "$(basename $0) [OPTION]...
+Run benchmarks. Must have server running at localhost:8090/
+
+ Options:
+  --sync       Run synchronous benchmarks, for all /run endpoints
+  --mapshed    Submit multiple requests to /run,
+               and single to /multi for Schuylkill HUC-8
+  --subbasin   Submit multiple requests to /run,
+               and single to /multi for all 61 HUC-12s
+               within Schuylkill HUC-8
+  -h, --help   Display this help text
+"
+}
+
+# Handle options
+while [[ -n $1 ]]; do
+    case $1 in
+        --sync) ENABLE_SYNC=1 ;;
+        --mapshed) ENABLE_MAPSHED=1 ;;
+        --subbasin) ENABLE_SUBBASIN=1 ;;
+        -h|--help|*) usage; exit 1 ;;
+    esac
+    shift
+done
+
+pushd scripts
+if [ -n "$ENABLE_SYNC" ]; then
+    pipenv run python benchmark-sync --rga --rlj --rs
+fi
+
+if [ -n "$ENABLE_MAPSHED" ]; then
+    pipenv run python benchmark-sync --mapshed
+
+    echo "Timing HUC8 MapShed, separate requests per operation ->"
+    echo
+    for i in `seq 1 5`; do
+      { time -p pipenv run python benchmark-mapshed > /dev/null; } 2>&1 |\
+       grep real |\
+       awk "{print \"HUC8 MapShed, 7 operations, run $i -> \" \$2 \" s\"}"
+    done
+    echo
+fi
+
+if [ -n "$ENABLE_SUBBASIN" ]; then
+    pipenv run python benchmark-sync --subbasin
+
+    echo "Timing 61 HUC12 Subbasin, separate requests per operation ->"
+    echo
+    for i in `seq 1 5`; do
+      { time -p pipenv run python benchmark-subbasin > /dev/null; } 2>&1 |\
+       grep real |\
+       awk "{print \"61 HUC12 Subbasin, 7 operations, run $i -> \" \$2 \" s\"}"
+    done
+    echo
+fi
+popd
