@@ -7,9 +7,9 @@
     "polygonCRS": "LatLng",
     "rasterCRS": "ConusAlbers",
     "rasters": [
-      "nlcd-2011-30m-epsg5070-0.10.0",
-      "us-percent-slope-30m-epsg5070",
-      "us-ssugro-kfactor-30m-epsg5070"
+      "nlcd-2011-30m-epsg5070-512-int8",
+      "us-percent-slope-30m-epsg5070-512",
+      "us-ssugro-kfactor-30m-epsg5070-512"
     ],
     "zoom": 0
   }
