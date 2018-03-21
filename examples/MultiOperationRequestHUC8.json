@@ -58,6 +58,27 @@
       "rasters": [
         "nlcd-2011-30m-epsg5070-512-int8"
       ]
+    },
+    {
+      "name": "RasterGroupedAverage",
+      "label": "soiln",
+      "targetRaster": "soiln-epsg5070",
+      "rasters": [],
+      "pixelIsArea": true
+    },
+    {
+      "name": "RasterGroupedAverage",
+      "label": "soilp",
+      "targetRaster": "soilpallland2-epsg5070",
+      "rasters": [],
+      "pixelIsArea": true
+    },
+    {
+      "name": "RasterGroupedAverage",
+      "label": "recess_coef",
+      "targetRaster": "bfi48grd-epsg5070",
+      "rasters": [],
+      "pixelIsArea": true
     }
   ]
 }
