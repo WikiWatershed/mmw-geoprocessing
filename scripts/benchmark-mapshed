@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+
+import aiohttp
+import asyncio
+import async_timeout
+import backoff
+
+URL = 'http://localhost:8090/run'
+
+# Schuylkill, HUC-8 Subbasin
+with open('benchmarking_input_data/Schuylkill_HUC08.geojson', 'r')\
+    as shapefile:
+    shape = shapefile.read()
+
+with open('benchmarking_input_data/Schuylkill_HUC08_streams.geojson', 'r')\
+    as streamsfile:
+    streams = streamsfile.read()
+
+operations = {
+    'nlcd_soil': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'rasters': [
+                'nlcd-2011-30m-epsg5070-512-int8',
+                'ssurgo-hydro-groups-30m-epsg5070-512-int8'
+            ],
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterGroupedCount',
+            'zoom': 0
+        }
+    },
+    'nlcd_streams': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'vector': [streams],
+            'vectorCRS': 'LatLng',
+            'rasters': [
+                'nlcd-2011-30m-epsg5070-512-int8'
+            ],
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterLinesJoin',
+            'zoom': 0
+        }
+    },
+    'gwn': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'rasters': [
+                'us-groundwater-nitrogen-30m-epsg5070-512'
+            ],
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterGroupedCount',
+            'zoom': 0
+        }
+    },
+    'avg_awc': {
+        'input': {
+            'polygon': [shape],
+            'targetRaster': 'us-ssurgo-aws100-30m-epsg5070-512',
+            'rasters': [],
+            'rasterCRS': 'ConusAlbers',
+            'polygonCRS': 'LatLng',
+            'operationType': 'RasterGroupedAverage',
+            'zoom': 0
+        }
+    },
+    'nlcd_slope': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'rasters': [
+                'nlcd-2011-30m-epsg5070-512-int8',
+                'us-percent-slope-30m-epsg5070-512'
+            ],
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterGroupedCount',
+            'zoom': 0
+        }
+    },
+    'slope': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'rasters': [],
+            'targetRaster': 'us-percent-slope-30m-epsg5070-512',
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterGroupedAverage',
+            'zoom': 0
+        }
+    },
+    'nlcd_kfactor': {
+        'input': {
+            'polygon': [shape],
+            'polygonCRS': 'LatLng',
+            'rasters': [
+                'nlcd-2011-30m-epsg5070-512-int8'
+            ],
+            'targetRaster': 'us-ssugro-kfactor-30m-epsg5070-512',
+            'rasterCRS': 'ConusAlbers',
+            'operationType': 'RasterGroupedAverage',
+            'zoom': 0
+        }
+    },
+}
+
+class RetryException(Exception):
+    pass
+
+@backoff.on_exception(backoff.expo, RetryException, max_tries=5)
+async def geoprocess(session, name, operation):
+    with async_timeout.timeout(100):
+        async with session.post(URL, json=operation) as response:
+            # Uncomment to enable retry
+            if response.status != 200:
+                raise RetryException()
+
+            # Uncomment to save output
+            # with open(name + '.json', 'wb') as handle:
+            #     while True:
+            #         chunk = await response.content.read(1024)
+            #         if not chunk:
+            #             break
+            #         handle.write(chunk)
+
+            return await response.release()
+
+async def main(loop):
+    async with aiohttp.ClientSession(loop=loop) as session:
+        tasks = [geoprocess(session, *operation)
+                 for operation in operations.items()]
+        await asyncio.gather(*tasks)
+
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(loop))

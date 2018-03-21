@@ -2,3 +2,11 @@
 set -ex
 
 ./scripts/update
+
+if [ -x "$(command -v pipenv)" ]; then
+  pushd scripts
+  pipenv install
+  popd
+else
+  echo "Please install pipenv to run benchmarks"
+fi

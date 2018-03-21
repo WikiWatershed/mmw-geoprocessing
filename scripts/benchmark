@@ -1,112 +1,70 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import division
+#!/usr/bin/env bash
 
-import sys
-import argparse
-import json
+set -e
 
-try:
-    import requests
-except ImportError:
-    sys.exit(("ImportError: Missing required dependency `requests` "
-              "(http://docs.python-requests.org)"))
+# Silence pushd and popd
+pushd () {
+    command pushd "$@" > /dev/null
+}
 
+popd () {
+    command popd "$@" > /dev/null
+}
 
-geoprocessing_url = 'http://localhost:8090/run'
-headers = {'Content-type': 'application/json'}
-input_data_dir = './scripts/benchmarking_input_data'
-huc8_file = 'RasterGroupedCount_Schuylkill_HUC08.json'
-huc10_file = 'RasterGroupedCount_LowerSchuylkillRiver_HUC10.json'
-huc12_file = 'RasterGroupedCount_LittleNeshaminy_HUC12.json'
-rga_file = 'RasterGroupedAverage.json'
-rlj_file = 'RasterLinesJoin_Schuylkill_HUC08.json'
-rs_file = 'RasterSummary_Schuylkill_HUC08.json'
+usage() {
+    echo -n "$(basename $0) [OPTION]...
+Run benchmarks. Must have server running at localhost:8090/
 
-def make_rga_request(input_file, operation_name):
-    print("Timing {} ->\n".format(operation_name))
-    elapsed_counts = []
-    for request_number in range(5):
-        with open("{}/{}".format(input_data_dir, input_file)) as data:
-            elapsed = requests.post(geoprocessing_url, data=data,
-                                    headers=headers).elapsed.total_seconds()
-            elapsed_counts.append(elapsed)
-            print("{}, run {} -> {} s".format(operation_name,
-                                              request_number + 1, elapsed))
+ Options:
+  --sync       Run synchronous benchmarks, for all /run endpoints
+  --mapshed    Submit multiple requests to /run,
+               and single to /multi for Schuylkill HUC-8
+  --subbasin   Submit multiple requests to /run,
+               and single to /multi for all 61 HUC-12s
+               within Schuylkill HUC-8
+  -h, --help   Display this help text
+"
+}
 
-    operation_average = sum(elapsed_counts) / len(elapsed_counts)
-    print("\n{} average -> {} s\n".format(operation_name, operation_average))
+# Handle options
+while [[ -n $1 ]]; do
+    case $1 in
+        --sync) ENABLE_SYNC=1 ;;
+        --mapshed) ENABLE_MAPSHED=1 ;;
+        --subbasin) ENABLE_SUBBASIN=1 ;;
+        -h|--help|*) usage; exit 1 ;;
+    esac
+    shift
+done
 
-def make_rgc_request(input_file, operation_name):
-    for layer_count in [1, 2, 3]:
-        operation_string = "{}, {} layers".format(operation_name, layer_count)
-        print("Timing {} ->\n".format(operation_string))
-        elapsed_counts = []
-        for request_number in range(5):
-            with open("{}/{}".format(input_data_dir, input_file)) as data:
-                adjusted_data = json.load(data)
-                rasters = adjusted_data["input"]["rasters"]
-                adjusted_data["input"]["rasters"] = rasters[:layer_count]
-                elapsed = requests.post(geoprocessing_url,
-                                        data=json.dumps(adjusted_data),
-                                        headers=headers).elapsed.total_seconds()
-                elapsed_counts.append(elapsed)
-                print("{}, run {} -> {} s".format(operation_string,
-                                               request_number + 1, elapsed))
+pushd scripts
+if [ -n "$ENABLE_SYNC" ]; then
+    pipenv run python benchmark-sync --rga --rlj --rs
+fi
 
-        operation_average = sum(elapsed_counts) / len(elapsed_counts)
-        print("\n{} average -> {} s\n".format(operation_string, operation_average))
+if [ -n "$ENABLE_MAPSHED" ]; then
+    pipenv run python benchmark-sync --mapshed
 
-def time_raster_grouped_average():
-    make_rga_request(rga_file, 'RasterGroupedAverage')
+    echo "Timing HUC8 MapShed, separate requests per operation ->"
+    echo
+    for i in `seq 1 5`; do
+      { time -p pipenv run python benchmark-mapshed > /dev/null; } 2>&1 |\
+       grep real |\
+       awk "{print \"HUC8 MapShed, 7 operations, run $i -> \" \$2 \" s\"}"
+    done
+    echo
+fi
 
-def time_raster_lines_join():
-    make_rga_request(rlj_file, 'HUC8 RasterLinesJoin')
+if [ -n "$ENABLE_SUBBASIN" ]; then
+    pipenv run python benchmark-sync --subbasin
 
-def time_raster_summary():
-    make_rga_request(rs_file, 'HUC8 RasterSummary')
-
-def time_huc12():
-    make_rgc_request(huc12_file, 'HUC12 RasterGroupedCount')
-
-def time_huc10():
-    make_rgc_request(huc10_file, 'HUC10 RasterGroupedCount')
-
-def time_huc8():
-    make_rgc_request(huc8_file, 'HUC8 RasterGroupedCount')
-
-parser = argparse.ArgumentParser(description='Test Geoprocessing service \
-    response times for RasterGroupedCount, RasterGroupedAverage, and \
-    RasterSummary operations.')
-
-parser.add_argument('--huc8', help='Time a HUC8 with 1-3 layers',
-                    action='store_true')
-parser.add_argument('--huc10', help='Time a HUC10 with 1-3 layers',
-                    action='store_true')
-parser.add_argument('--huc12', help='Time a HUC12 with 1-3 layers',
-                    action='store_true')
-parser.add_argument('--rga', help='Time a RasterGroupedAverage operation',
-                    action='store_true')
-parser.add_argument('--rlj', help='Time a RasterLinesJoin operation',
-                    action='store_true')
-parser.add_argument('--rs', help='Time a RasterSummary operation',
-                    action='store_true')
-
-args = vars(parser.parse_args(sys.argv[1:]))
-
-if True not in args.values():
-    time_raster_lines_join()
-    time_raster_grouped_average()
-    time_raster_summary()
-    time_huc12()
-    time_huc10()
-    time_huc8()
-else:
-    if args['huc8']: time_huc8()
-    if args['huc10']: time_huc10()
-    if args['huc12']: time_huc12()
-    if args['rga']: time_raster_grouped_average()
-    if args['rlj']: time_raster_lines_join()
-    if args['rs']: time_raster_summary()
+    echo "Timing 61 HUC12 Subbasin, separate requests per operation ->"
+    echo
+    for i in `seq 1 5`; do
+      { time -p pipenv run python benchmark-subbasin > /dev/null; } 2>&1 |\
+       grep real |\
+       awk "{print \"61 HUC12 Subbasin, 7 operations, run $i -> \" \$2 \" s\"}"
+    done
+    echo
+fi
+popd
