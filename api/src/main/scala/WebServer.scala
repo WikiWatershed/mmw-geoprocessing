@@ -26,12 +26,37 @@ case class ResultInt(result: Map[String, Int])
 case class ResultDouble(result: Map[String, Double])
 case class ResultSummary(result: Seq[Map[String, Double]])
 
+// HUCs have an id and a shape. The shape is GeoJSON, but we've transmitted
+// them as Strings in the past so we continue to do so here.
+case class HUC (
+  id: HucID,
+  shape: GeoJSONString // GeoJSON Polygon or MultiPolygon
+)
+
+case class Operation (
+  name: String, // RasterGroupedCount, RasterGroupedAverage, RasterLinesJoin
+  label: OperationID,
+  rasters: List[RasterID],
+  targetRaster: Option[RasterID],
+  pixelIsArea: Option[Boolean]
+)
+
+case class MultiInput (
+  shapes: List[HUC],
+  streamLines: Option[GeoJSONString], // GeoJSON MultiLineString
+  operations: List[Operation]
+)
+
 object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val inputFormat = jsonFormat10(InputData)
   implicit val postFormat = jsonFormat1(PostRequest)
   implicit val resultFormat = jsonFormat1(ResultInt)
   implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
   implicit val resultSummaryFormat = jsonFormat1(ResultSummary)
+
+  implicit val hucFormat = jsonFormat2(HUC)
+  implicit val operationFormat = jsonFormat5(Operation)
+  implicit val multiInputFormat = jsonFormat3(MultiInput)
 }
 
 object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with ErrorHandler {
@@ -62,6 +87,11 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
                 throw new InvalidOperationException(message)
               }
             }
+          }
+        } ~
+        path("multi") {
+          entity(as[MultiInput]) { input =>
+            complete(getMultiOperations(input))
           }
         }
       }

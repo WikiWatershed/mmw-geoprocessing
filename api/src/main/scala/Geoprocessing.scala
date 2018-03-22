@@ -12,7 +12,83 @@ import geotrellis.vector._
 
 import geotrellis.spark._
 
+import cats.implicits._
+
 trait Geoprocessing extends Utils {
+
+  @throws(classOf[MissingStreamLinesException])
+  @throws(classOf[MissingTargetRasterException])
+  def getMultiOperations(input: MultiInput): Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = {
+
+    val hucs: Map[HucID, MultiPolygon] =
+      input.shapes.map(huc => huc.id -> normalizeHuc(huc)).toMap
+
+    val aoi = hucs.values.unionGeometries.asMultiPolygon.get
+
+    val rasterIds =
+      (input.operations.flatMap(_.targetRaster) ++ input.operations.flatMap(_.rasters)).distinct
+
+    val cachedOpts: Map[Operation, Rasterizer.Options] =
+      input.operations.map(op => op -> getRasterizerOptions(op.pixelIsArea)).toMap
+
+    val futureRasters: Map[RasterID, Future[RasterLayer]] =
+      rasterIds.map { rid =>
+        rid -> Future(cropSingleRasterToAOI(rid, 0, aoi))
+      }.toMap
+
+    val tabular: Future[List[(HucID, OperationID, Map[String,Double])]] = Future.sequence {
+      (input.shapes, input.operations).mapN { case (huc, op) =>
+        val shape = hucs(huc.id)
+        val opts = cachedOpts(op)
+
+        val futureLayers: Future[List[RasterLayer]] =
+          op.rasters.map(futureRasters(_)).sequence
+
+        val futureTargetLayer: Future[Option[RasterLayer]] =
+          op.targetRaster.map(futureRasters(_)).sequence
+
+        for {
+          layers <- futureLayers
+          targetLayer <- futureTargetLayer
+        } yield {
+          val results = op.name match {
+            case "RasterGroupedCount" =>
+              rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+
+            case "RasterGroupedAverage" =>
+              targetLayer match {
+                case Some(tl) =>
+                  if (layers.isEmpty) rasterAverage(tl, shape, opts)
+                  else rasterGroupedAverage(layers, tl, shape, opts)
+                case None =>
+                  throw new MissingTargetRasterException
+              }
+
+            case "RasterLinesJoin" =>
+              input.streamLines match {
+                case Some(mls) => {
+                  val lines = (parseMultiLineString(mls) & shape).asMultiLine.get
+                  rasterLinesJoin(layers, Seq(lines)).mapValues(_.toDouble)
+                }
+                case None =>
+                  throw new MissingStreamLinesException
+              }
+          }
+
+          (huc.id, op.label, results)
+        }
+      }
+    }
+
+    val nested: Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = tabular.map { list =>
+      list.groupBy { case (a, _, _) => a }.mapValues {
+        grouped => grouped.map {case (_, b, c) => (b, c) }.toMap
+      }
+    }
+
+    nested
+  }
+
   /**
     * For an InputData object, return a histogram of raster grouped count results.
     *

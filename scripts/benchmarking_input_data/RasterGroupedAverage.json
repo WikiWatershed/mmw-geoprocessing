@@ -5,10 +5,10 @@
     ],
     "polygonCRS": "LatLng",
     "rasters": [
-        "nlcd-2011-30m-epsg5070-0.10.0"
+        "nlcd-2011-30m-epsg5070-512-int8"
     ],
     "rasterCRS": "ConusAlbers",
-    "targetRaster": "us-ssugro-kfactor-30m-epsg5070",
+    "targetRaster": "us-ssugro-kfactor-30m-epsg5070-512",
     "operationType": "RasterGroupedAverage",
     "zoom": 0
   }

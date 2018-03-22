@@ -9,6 +9,7 @@ sealed trait GeoprocessingException extends Exception
 case class MissingTargetRasterException() extends GeoprocessingException()
 case class MissingVectorCRSException() extends GeoprocessingException()
 case class MissingVectorException() extends GeoprocessingException()
+case class MissingStreamLinesException() extends GeoprocessingException()
 case class InvalidOperationException(val message: String) extends GeoprocessingException()
 case class UnknownCRSException(val crs: String) extends GeoprocessingException()
 
@@ -29,6 +30,10 @@ trait ErrorHandler {
     case MissingVectorException() => {
       println(s"Input error: Missing required vector")
       complete(HttpResponse(BadRequest, entity = "Missing required vector"))
+    }
+    case MissingStreamLinesException() => {
+      println(s"Input error: Missing required streamLines")
+      complete(HttpResponse(BadRequest, entity = "Missing required streamLines"))
     }
     case UnknownCRSException(crs) => {
       println(s"Unknown CRS error: $crs")

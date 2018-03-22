@@ -75,6 +75,19 @@ trait Utils {
   }
 
   /**
+    * Converts a HUC shape into a reprojected and normalized MultiPolygon
+    * Assumes input is in LatLng and rasters are in ConusAlbers
+    * @param   huc    HUC containing shape string
+    * @return         A MultiPolygon
+    */
+  def normalizeHuc(huc: HUC): MultiPolygon = {
+    parseGeometry(huc.shape, LatLng, ConusAlbers)
+      .buffer(0)
+      .asMultiPolygon
+      .get
+  }
+
+  /**
     * Given an optional boolean value, if it is true, returns Rasterizer
     * Options treating the raster pixels as areas. If false, returns Options
     * treating the raster pixels as points. If not specified, return default
@@ -147,6 +160,12 @@ trait Utils {
       case _ => MultiLine()
     }
   }
+
+  /**
+    * Convenience flavor of the above with defaults
+    */
+  def parseMultiLineString(geoJson: String): MultiLine =
+    parseMultiLineString(geoJson, LatLng, ConusAlbers)
 
   /**
     * Given a sequence of MultiLines and an area of interest, crops the lines
