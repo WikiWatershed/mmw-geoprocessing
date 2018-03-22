@@ -1,3 +1,21 @@
+## 4.0.0
+
+- Add a new `/multi` endpoint that can take a set of shapes,
+  a MultiLine string of streamLines, and a set of operations,
+  to return a result containing all the operations performed
+  for all the shapes. This is useful for the new sub-basin
+  modeling, in which a number of adjacent shapes have to be
+  processed together. Since the most expensive part of this
+  process is fetching the tiles from S3, by fetching them
+  once for the entire set of shapes and reusing the fetched
+  tiles, we reduce the time taken to process a large number
+  of shapes by almost an order of magnitude.
+  
+  This new endpoint supports `RasterGroupedCount`,
+  `RasterAverage`, `RasterGroupedAverage`, and
+  `RasterLinesJoin`. It does not support `RasterSummary`
+  because its output type is different.
+
 ## 3.1.0
 
 - Add RasterSummary operation that, given a shape and a list
