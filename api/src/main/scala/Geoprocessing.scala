@@ -72,7 +72,7 @@ trait Geoprocessing extends Utils {
                       rasterLinesJoin(layers, Seq(lines))
                         .mapValues(_.toDouble)
                     case None =>
-                      throw new MissingStreamLinesException
+                      Map[String, Double]()
                   }
                 }
                 case None =>
