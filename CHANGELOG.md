@@ -1,3 +1,18 @@
+## 4.0.1
+
+- Update `/multi` endpoint to take a set of shapes and a
+  MultiLine string of streamLines, such that there may be
+  shapes that do not intersect any of the streamLines at
+  all, and still return results. Previously this would
+  cause a 500 with the following error:
+
+      java.util.NoSuchElementException: None.get
+
+  Now we simply return that operation with an empty object,
+  like so:
+
+       "nlcd_streams": {},
+
 ## 4.0.0
 
 - Add a new `/multi` endpoint that can take a set of shapes,
