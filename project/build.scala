@@ -30,7 +30,7 @@ object Geoprocessing extends Build {
     super.settings ++
   Seq(
     shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
-    version := "4.0.1",
+    version := "4.0.2",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
     name := "mmw-geoprocessing",
