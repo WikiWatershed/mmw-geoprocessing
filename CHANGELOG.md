@@ -1,3 +1,7 @@
+## 4.0.3
+
+- Update credentials for Travis to fix deployments
+
 ## 4.0.2
 
 - Update `/run` and `/multi` endpoints to take a set of
