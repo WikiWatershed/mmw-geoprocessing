@@ -1,3 +1,17 @@
+## 4.0.2
+
+- Update `/run` and `/multi` endpoints to take a set of
+  shapes and a list of rasters with differring extents,
+  such that the spatial keys from one raster may not be
+  available in another one. Previously this would cause
+  a 500 with the following error:
+
+      java.util.NoSuchElementException: key not found: SpatialKey(66,132)
+
+  Now we use an empty tile with NODATA values instead:
+
+      "List(21, -2147483648)": 8,
+
 ## 4.0.1
 
 - Update `/multi` endpoint to take a set of shapes and a
@@ -25,7 +39,7 @@
   once for the entire set of shapes and reusing the fetched
   tiles, we reduce the time taken to process a large number
   of shapes by almost an order of magnitude.
-  
+
   This new endpoint supports `RasterGroupedCount`,
   `RasterAverage`, `RasterGroupedAverage`, and
   `RasterLinesJoin`. It does not support `RasterSummary`
