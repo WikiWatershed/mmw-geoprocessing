@@ -203,10 +203,12 @@ trait Utils {
   def joinCollectionLayers(
     layers: Seq[TileLayerCollection[SpatialKey]]
   ): Map[SpatialKey, Seq[Tile]] = {
+    val layout = layers.head.metadata.layout
+    lazy val emptyTile = IntConstantTile(NODATA, layout.tileCols, layout.tileRows)
     val maps: Seq[Map[SpatialKey, Tile]] = layers.map((_: Seq[(SpatialKey, Tile)]).toMap)
     val keySet: Array[SpatialKey] = maps.map(_.keySet).reduce(_ union _).toArray
     for (key: SpatialKey <- keySet) yield {
-      val tiles: Seq[Tile] = maps.map(_.apply(key))
+      val tiles: Seq[Tile] = maps.map(_.getOrElse(key, emptyTile))
       key -> tiles
     }
   }.toMap
