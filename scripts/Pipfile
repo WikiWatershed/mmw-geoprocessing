@@ -8,7 +8,7 @@ name = "pypi"
 [packages]
 
 requests = "==2.20.0"
-aiohttp = "==3.0.9"
+aiohttp = "==3.7.4"
 backoff = "==1.4.3"
 
 
