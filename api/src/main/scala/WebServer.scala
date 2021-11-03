@@ -43,7 +43,7 @@ case class Operation (
 
 case class MultiInput (
   shapes: List[HUC],
-  streamLines: Option[GeoJSONString], // GeoJSON MultiLineString
+  streamLines: Option[List[GeoJSONString]], // GeoJSON MultiLineString
   operations: List[Operation]
 )
 

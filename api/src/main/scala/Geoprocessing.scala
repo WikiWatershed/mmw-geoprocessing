@@ -67,13 +67,8 @@ trait Geoprocessing extends Utils {
             case "RasterLinesJoin" =>
               input.streamLines match {
                 case Some(mls) => {
-                  (parseMultiLineString(mls) & shape).asMultiLine match {
-                    case Some(lines) =>
-                      rasterLinesJoin(layers, Seq(lines))
-                        .mapValues(_.toDouble)
-                    case None =>
-                      Map[String, Double]()
-                  }
+                  val lines = cropLinesToAOI(mls.map(parseMultiLineString), shape)
+                  rasterLinesJoin(layers, lines).mapValues(_.toDouble)
                 }
                 case None =>
                   throw new MissingStreamLinesException
