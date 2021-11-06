@@ -1,3 +1,10 @@
+## 5.0.0
+
+- Update `/multi` endpoint to take the same format of stream data
+  as the `/run` endpoint does: a list of MultiLineStrings instead
+  of a single one. Also update existing examples, and add new ones.
+  This is a breaking change.
+
 ## 4.0.3
 
 - Update credentials for Travis to fix deployments

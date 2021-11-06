@@ -14,7 +14,7 @@ object Version {
   val geotrellisOld = "0.10.0"
   val scala        = either("SCALA_VERSION", "2.11.11")
   val scalatest    = "2.2.1"
-  lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.6.1")
+  lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.8.1")
   lazy val hadoop  = either("SPARK_HADOOP_VERSION", "2.6.0")
   lazy val spark   = either("SPARK_VERSION", "1.5.2")
   lazy val akkaHttpVersion = "10.0.9"
@@ -30,7 +30,7 @@ object Geoprocessing extends Build {
     super.settings ++
   Seq(
     shellPrompt := { s => Project.extract(s).currentProject.id + " > " },
-    version := "4.0.3",
+    version := "5.0.0",
     scalaVersion := Version.scala,
     organization := "org.wikiwatershed.mmw.geoprocessing",
     name := "mmw-geoprocessing",
@@ -65,8 +65,7 @@ object Geoprocessing extends Build {
 
   val resolutionRepos = Seq(
     Resolver.bintrayRepo("scalaz", "releases"),
-    "OpenGeo" at "https://boundless.artifactoryonline.com/boundless/main",
-    "Job Server Bintray" at "https://dl.bintray.com/spark-jobserver/maven"
+    "Artifactory" at "https://sparkjobserver.jfrog.io/artifactory/jobserver/"
   )
 
   val defaultAssemblySettings =
