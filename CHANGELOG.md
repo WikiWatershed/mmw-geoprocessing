@@ -1,3 +1,8 @@
+## 5.1.0
+
+- Increase timeout to 2 minutes, as the new Hi Res Streams can
+  easily exceed the 1 minute limit.
+
 ## 5.0.0
 
 - Update `/multi` endpoint to take the same format of stream data
