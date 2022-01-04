@@ -24,7 +24,7 @@ huc12_file = 'RasterGroupedCount_LittleNeshaminy_HUC12.json'
 rga_file = 'RasterGroupedAverage.json'
 rlj_file = 'RasterLinesJoin_Schuylkill_HUC08.json'
 rs_file = 'RasterSummary_Schuylkill_HUC08.json'
-multi_subbasin_file = 'MultiOperationRequest.json'
+multi_subbasin_file = 'MultiOperationRequestHiResStreams.json'
 multi_mapshed_file = 'MultiOperationRequestHUC8.json'
 
 def make_multi_request(input_file, operation_name):
