@@ -1,3 +1,8 @@
+## 5.2.0
+
+- Make application settings overridable by environment variables, so that
+  changing them does not require new releases of the geoprocessing service.
+
 ## 5.1.0
 
 - Increase timeout to 2 minutes, as the new Hi Res Streams can
