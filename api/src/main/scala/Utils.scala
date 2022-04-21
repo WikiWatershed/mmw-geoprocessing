@@ -75,6 +75,20 @@ trait Utils {
   }
 
   /**
+    * Given input data containing a polygonCRS & a raster CRS, transform a
+    * a list of input polygon strings into a sequence of MultiPolygons
+    *
+    * @param   input  InputData including polygons, polygonCRS, and rasterCRS
+    * @return         A Sequence of MultiPolygons
+    */
+  def createAOIsFromInput(input: InputData): Seq[MultiPolygon] = {
+    val parseGeom =
+      parseGeometry(_: String, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
+
+    input.polygon.map { str => parseGeom(str).buffer(0).asMultiPolygon.get }
+  }
+
+  /**
     * Converts a HUC shape into a reprojected and normalized MultiPolygon
     * Assumes input is in LatLng and rasters are in ConusAlbers
     * @param   huc    HUC containing shape string
