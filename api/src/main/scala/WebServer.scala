@@ -25,6 +25,7 @@ case class PostRequest(input: InputData)
 case class ResultInt(result: Map[String, Int])
 case class ResultDouble(result: Map[String, Double])
 case class ResultSummary(result: Seq[Map[String, Double]])
+case class ResultManyInt(result: Seq[Map[String, Int]])
 
 // HUCs have an id and a shape. The shape is GeoJSON, but we've transmitted
 // them as Strings in the past so we continue to do so here.
@@ -53,6 +54,7 @@ object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val resultFormat = jsonFormat1(ResultInt)
   implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
   implicit val resultSummaryFormat = jsonFormat1(ResultSummary)
+  implicit val resultManyIntFormat = jsonFormat1(ResultManyInt)
 
   implicit val hucFormat = jsonFormat2(HUC)
   implicit val operationFormat = jsonFormat5(Operation)
@@ -76,6 +78,8 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
             data.input.operationType match {
               case "RasterGroupedCount" =>
                 complete(getRasterGroupedCount(data.input))
+              case "RasterGroupedCountMany" =>
+                complete(getRasterGroupedCountMany(data.input))
               case "RasterGroupedAverage" =>
                 complete(getRasterGroupedAverage(data.input))
               case "RasterLinesJoin" =>

@@ -106,6 +106,27 @@ trait Geoprocessing extends Utils {
   }
 
   /**
+    * For an InputData with multiple polygons, return a histogram of raster
+    * grouped count results for each of those polygons.
+    *
+    * @param   input  The InputData
+    * @return         A sequence of histograms of results
+    */
+  def getRasterGroupedCountMany(input: InputData): Future[ResultManyInt] = {
+    val aois = createAOIsFromInput(input)
+    val futureLayers =
+      cropRastersToAOI(
+        input.rasters,
+        input.zoom,
+        aois.unionGeometries.asMultiPolygon.get)
+    val opts = getRasterizerOptions(input.pixelIsArea)
+
+    futureLayers.map { layers =>
+      ResultManyInt(aois.map { aoi => rasterGroupedCount(layers, aoi, opts) })
+    }
+  }
+
+  /**
     * For an InputData object, return a histogram of raster grouped average
     * results.
     *
