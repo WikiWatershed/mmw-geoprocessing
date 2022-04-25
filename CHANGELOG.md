@@ -1,3 +1,10 @@
+## 5.3.0
+
+- Add RasterGroupedCountMany operation that can take a list of input polygons
+  and returns a list of histograms, for each polygon in order. This is useful
+  for models that have spatial modifications, and need to get results for many
+  of them at once.
+
 ## 5.2.0
 
 - Make application settings overridable by environment variables, so that
