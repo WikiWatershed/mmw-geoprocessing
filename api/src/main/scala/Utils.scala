@@ -243,6 +243,22 @@ trait Utils {
       .where(Intersects(shape))
       .result
 
+  def printConfiguration() = {
+    val config = ConfigFactory.load()
+
+    val host = config.getString("geoprocessing.hostname")
+    val port = config.getString("geoprocessing.port")
+    val timeout = config.getString("akka.http.server.request-timeout")
+    val maxlen = config.getString("akka.http.parsing.max-content-length")
+
+    println("Initializing mmw-geoprocessing with these variables:")
+    println(s"MMW_GEOPROCESSING_HOST $host")
+    println(s"MMW_GEOPROCESSING_PORT $port")
+    println(s"MMW_GEOPROCESSING_BUCKET $s3bucket")
+    println(s"MMW_GEOPROCESSING_TIMEOUT $timeout")
+    println(s"MMW_GEOPROCESSING_MAXLEN $maxlen")
+  }
+
   class MinWithoutNoData extends DoubleBinaryOperator {
     override def applyAsDouble(left: Double, right: Double): Double =
       (left, right) match {
