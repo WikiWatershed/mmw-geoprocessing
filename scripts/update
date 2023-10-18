@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -ex
 
-./sbt compile
+./sbt "project api" compile
