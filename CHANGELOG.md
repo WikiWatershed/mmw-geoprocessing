@@ -1,3 +1,8 @@
+## 5.4.0
+
+- Add printing environment variables on startup to better observe the runtime
+  configuration of the service.
+
 ## 5.3.0
 
 - Add RasterGroupedCountMany operation that can take a list of input polygons
