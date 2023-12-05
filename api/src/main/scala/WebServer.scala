@@ -105,5 +105,7 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
   val port = config.getInt("geoprocessing.port")
   val host = config.getString("geoprocessing.hostname")
 
+  printConfiguration()
+
   startServer(host, port)
 }
