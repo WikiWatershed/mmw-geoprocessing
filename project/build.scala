@@ -11,12 +11,8 @@ object Version {
     Properties.envOrElse(environmentVariable, default)
 
   val geotrellis   = "1.1.1"
-  val geotrellisOld = "0.10.0"
   val scala        = either("SCALA_VERSION", "2.11.11")
   val scalatest    = "2.2.1"
-  lazy val jobserver = either("SPARK_JOBSERVER_VERSION", "0.8.1")
-  lazy val hadoop  = either("SPARK_HADOOP_VERSION", "2.6.0")
-  lazy val spark   = either("SPARK_VERSION", "1.5.2")
   lazy val akkaHttpVersion = "10.0.9"
   lazy val akkaVersion    = "2.4.16"
   lazy val akkaHttpCorsVersion = "0.2.1"
@@ -64,8 +60,7 @@ object Geoprocessing extends Build {
   )
 
   val resolutionRepos = Seq(
-    Resolver.bintrayRepo("scalaz", "releases"),
-    "Artifactory" at "https://sparkjobserver.jfrog.io/artifactory/jobserver/"
+    Resolver.bintrayRepo("scalaz", "releases")
   )
 
   val defaultAssemblySettings =
@@ -85,13 +80,10 @@ object Geoprocessing extends Build {
   )
 
   lazy val root = Project(id = "mmw-geoprocessing",
-    base = file(".")).aggregate(api, summary)
+    base = file(".")).aggregate(api)
 
   lazy val api = Project("api", file("api"))
     .settings(apiSettings:_*)
-
-  lazy val summary = Project("summary", file("summary"))
-    .settings(summarySettings:_*)
 
   lazy val apiSettings =
     Seq(
@@ -106,18 +98,6 @@ object Geoprocessing extends Build {
         "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLoggingVersion,
         "org.apache.spark" %% "spark-core" % Version.sparkCoreVersion,
         "org.typelevel" %% "cats-core" % "1.0.1"
-      )
-    ) ++
-  defaultAssemblySettings
-
-  lazy val summarySettings =
-    Seq(
-      libraryDependencies ++= Seq(
-        "com.azavea.geotrellis" %% "geotrellis-spark" % Version.geotrellisOld,
-        "com.azavea.geotrellis" %% "geotrellis-s3" % Version.geotrellisOld,
-        "org.apache.spark" %% "spark-core" % Version.spark % "provided",
-        "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
-        "spark.jobserver" %% "job-server-api" % Version.jobserver % "provided"
       )
     ) ++
   defaultAssemblySettings
