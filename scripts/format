@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -ex
+
+pushd scripts
+
+pipenv run ruff format benchmark-sync benchmark-mapshed benchmark-subbasin
+
+popd
