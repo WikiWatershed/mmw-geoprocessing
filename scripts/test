@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -ex
+
+pushd scripts
+
+pipenv run python benchmark-mapshed --verify
+pipenv run python benchmark-subbasin --verify
+
+popd
