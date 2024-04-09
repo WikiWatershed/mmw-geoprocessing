@@ -10,7 +10,6 @@ import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 import geotrellis.layer._
 import geotrellis.raster._
 import geotrellis.raster.rasterize._
-import geotrellis.spark._
 import geotrellis.store._
 import geotrellis.store.s3._
 import geotrellis.vector._

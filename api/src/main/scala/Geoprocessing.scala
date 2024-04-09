@@ -12,8 +12,6 @@ import geotrellis.raster._
 import geotrellis.raster.rasterize._
 import geotrellis.vector._
 
-//import geotrellis.spark._
-
 import cats.implicits._
 
 trait Geoprocessing extends Utils {

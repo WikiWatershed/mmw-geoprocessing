@@ -11,15 +11,11 @@ ThisBuild  / scalaVersion := Version.scala
 
 lazy val root = Project("mmw-geoprocessing", file("."))
   .aggregate(
-    api,
-    summary
+    api
   )
 
 lazy val api = project
   .settings(commonSettings ++ apiDependencies ++ consoleSettings)
-
-lazy val summary = project
-  .settings(commonSettings ++ summaryDependencies)
 
 lazy val scalacOpts = Seq(
     "-deprecation",
@@ -39,32 +35,14 @@ lazy val apiDependencies = Seq(
     akkaHttp,
     akkaHttpSprayJson,
     akkaStream,
-    sparkCore,
-    hadoopAws,
-    hadoopCommon,
-    hadoopMapReduceClientCore,
     logging,
+    scalaParallel,
     scalatest % Test,
     scalactic % Test,
-    geotrellisSpark,
-    geotrellisSparkTestKit % Test,
     geotrellisS3,
     geotrellisGdal,
     geotrellisRaster,
     geotrellisVector
-  )
-)
-
-lazy val summaryDependencies = Seq(
-  libraryDependencies ++= Seq(
-    geotrellisSpark,
-    geotrellisSparkTestKit % Test,
-    geotrellisS3,
-    geotrellisGdal,
-    geotrellisRaster,
-    geotrellisVector,
-    sparkCore,
-    hadoopCommon
   )
 )
 
@@ -84,17 +62,8 @@ lazy val commonSettings = Seq(
     "GeoSolutions" at "https://maven.geo-solutions.it/",
     "LT-releases" at "https://repo.locationtech.org/content/groups/releases",
     "OSGeo" at "https://repo.osgeo.org/repository/release/",
-    //"Java.net repository" at "https://download.java.net/maven/2"
-    // "Artifacts" at "https://mvnrepository.com/artifact",
-    // "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/snapshots/",
-    // "jitpack" at "https://jitpack.io",
     "maven2" at "https://repo1.maven.org/maven2"
-    //  "Geotools Wrapper" at "https://mvnrepository.com/artifact/org.datasyslab/geotools-wrapper",
-    // "Geotools Metadata" at "https://mvnrepository.com/artifact/org.geotools/gt-metadata",
-    // Resolver.bintrayRepo("azavea", "geotrellis")
   ),
-
-  // dependencyOverrides += "com.google.guava" % "guava" % "20.0",
 
   assembly / assemblyShadeRules := {
     val shadePackage = "org.wikiwatershed.shaded"
@@ -146,12 +115,6 @@ lazy val consoleSettings = Seq(
   import geotrellis.raster._
   import geotrellis.vector._
   import geotrellis.vector.io._
-  // import geotrellis.spark._
-  // import geotrellis.spark.tiling._
   import geotrellis.vector.io.wkt.WKT
-
-  import org.apache.spark.rdd._
-  import org.apache.spark.sql._
-  import org.apache.spark.{SparkConf, SparkContext}
   """
 )
