@@ -321,9 +321,11 @@ trait Geoprocessing extends Utils {
 
           update(targetLayerValue, pixelValues)
         }
+        case (_,_) => ()
       })
 
     pixelGroups
+      .view
       .mapValues { case (accumulator, counter) => accumulator.sum / counter.sum }
       .map { case (k, v) => k.toString -> v }
       .toMap
@@ -362,6 +364,7 @@ trait Geoprocessing extends Utils {
       })
 
     pixelGroups
+      .view
       .mapValues(_.sum().toInt)
       .map { case (k, v) => k.toString -> v}
       .toMap
