@@ -3,14 +3,14 @@ package org.wikiwatershed.mmw.geoprocessing
 import java.util.concurrent.atomic.{LongAdder, DoubleAdder, DoubleAccumulator}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.parallel.CollectionConverters._
 
 import collection.concurrent.TrieMap
 
+import geotrellis.layer._
 import geotrellis.raster._
 import geotrellis.raster.rasterize._
 import geotrellis.vector._
-
-import geotrellis.spark._
 
 import cats.implicits._
 
@@ -53,7 +53,7 @@ trait Geoprocessing extends Utils {
         } yield {
           val results = op.name match {
             case "RasterGroupedCount" =>
-              rasterGroupedCount(layers, shape, opts).mapValues(_.toDouble)
+              rasterGroupedCount(layers, shape, opts).fmap(_.toDouble)
 
             case "RasterGroupedAverage" =>
               targetLayer match {
@@ -68,7 +68,7 @@ trait Geoprocessing extends Utils {
               input.streamLines match {
                 case Some(mls) => {
                   val lines = cropLinesToAOI(mls.map(parseMultiLineString), shape)
-                  rasterLinesJoin(layers, lines).mapValues(_.toDouble)
+                  rasterLinesJoin(layers, lines).fmap(_.toDouble)
                 }
                 case None =>
                   throw new MissingStreamLinesException
@@ -81,7 +81,7 @@ trait Geoprocessing extends Utils {
     }
 
     val nested: Future[Map[HucID, Map[OperationID, Map[String, Double]]]] = tabular.map { list =>
-      list.groupBy { case (a, _, _) => a }.mapValues {
+      list.groupBy { case (a, _, _) => a }.fmap {
         grouped => grouped.map {case (_, b, c) => (b, c) }.toMap
       }
     }
@@ -210,7 +210,7 @@ trait Geoprocessing extends Utils {
     */
   private def rasterLinesJoin(
     rasterLayers: Seq[TileLayerCollection[SpatialKey]],
-    lines: Seq[MultiLine]
+    lines: Seq[MultiLineString]
   ): Map[String, Int] = {
     val metadata = rasterLayers.head.metadata
     val pixelGroups: TrieMap[(List[Int], TilePixel), Int] = TrieMap.empty
@@ -232,7 +232,7 @@ trait Geoprocessing extends Utils {
 
     pixelGroups
       .groupBy(_._1._1.toString)
-      .mapValues(_.size)
+      .fmap(_.size)
   }
 
   /**
@@ -319,9 +319,11 @@ trait Geoprocessing extends Utils {
 
           update(targetLayerValue, pixelValues)
         }
+        case (_,_) => ()
       })
 
     pixelGroups
+      .view
       .mapValues { case (accumulator, counter) => accumulator.sum / counter.sum }
       .map { case (k, v) => k.toString -> v }
       .toMap
@@ -360,6 +362,7 @@ trait Geoprocessing extends Utils {
       })
 
     pixelGroups
+      .view
       .mapValues(_.sum().toInt)
       .map { case (k, v) => k.toString -> v}
       .toMap
