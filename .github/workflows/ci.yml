@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+      - hotfix/**
+      - release/**
+      - test/**
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    name: compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Run Setup
+        run: ./scripts/setup
