@@ -8,6 +8,7 @@ licenses := Seq(
 
 scalaVersion := Version.scala
 ThisBuild  / scalaVersion := Version.scala
+ThisBuild  / version := "6.0.0"
 
 lazy val root = Project("mmw-geoprocessing", file("."))
   .aggregate(

@@ -1,3 +1,11 @@
+## 6.0.0
+
+- Upgrades the GeoTrellis library to `3.7.0`, the latest at this time
+- Upgrade Scala to `2.13`, sbt to `1.9.7`
+- Switch to using `build.sbt` instead of `build.scala`
+- Add `scripts/test` to run black-box tests on running service
+- **NOTE:** This is a major version upgrade because of the significant GeoTrellis, Scala, and SBT upgrades, but there are no changes for the service API itself
+
 ## 5.4.0
 
 - Add printing environment variables on startup to better observe the runtime
