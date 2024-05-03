@@ -14,4 +14,4 @@ dictdiffer = "==0.7.1"
 ruff = "==0.2.2"
 
 [requires]
-python_version = "3"
+python_version = "3.11"

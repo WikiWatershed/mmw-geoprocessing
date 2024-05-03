@@ -19,8 +19,8 @@ import geotrellis.vector.io.json.GeoJson
 import com.typesafe.config.ConfigFactory
 
 trait Utils {
-  val s3bucket = ConfigFactory.load().getString("geoprocessing.s3bucket")
-  val baseLayerReader = S3CollectionLayerReader(s3bucket, "")
+  val s3bucket: String = ConfigFactory.load().getString("geoprocessing.s3bucket")
+  val baseLayerReader: S3CollectionLayerReader = S3CollectionLayerReader(s3bucket, "")
 
   /**
     * Given a zoom level & area of interest, transform a list of raster
@@ -209,7 +209,7 @@ trait Utils {
     case "LatLng" => LatLng
     case "WebMercator" => WebMercator
     case "ConusAlbers" => ConusAlbers
-    case s: String => throw new UnknownCRSException(s)
+    case s: String => throw UnknownCRSException(s)
   }
 
   /**
@@ -247,7 +247,7 @@ trait Utils {
       .where(Intersects(shape))
       .result
 
-  def printConfiguration() = {
+  def printConfiguration(): Unit = {
     val config = ConfigFactory.load()
 
     val host = config.getString("geoprocessing.hostname")

@@ -88,7 +88,7 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
                 complete(getRasterSummary(data.input))
               case _ => {
                 val message = s"Unknown operationType: ${data.input.operationType}"
-                throw new InvalidOperationException(message)
+                throw InvalidOperationException(message)
               }
             }
           }
