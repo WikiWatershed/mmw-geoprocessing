@@ -5,23 +5,22 @@ import java.util.function.DoubleBinaryOperator
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import spray.json._
-
 import geotrellis.proj4.{CRS, ConusAlbers, LatLng, WebMercator}
 
+import geotrellis.layer._
 import geotrellis.raster._
 import geotrellis.raster.rasterize._
+import geotrellis.store._
+import geotrellis.store.s3._
 import geotrellis.vector._
 import geotrellis.vector.io._
-import geotrellis.spark._
-import geotrellis.spark.io._
-import geotrellis.spark.io.s3._
+import geotrellis.vector.io.json.GeoJson
 
 import com.typesafe.config.ConfigFactory
 
 trait Utils {
-  val s3bucket = ConfigFactory.load().getString("geoprocessing.s3bucket")
-  val baseLayerReader = S3CollectionLayerReader(s3bucket, "")
+  val s3bucket: String = ConfigFactory.load().getString("geoprocessing.s3bucket")
+  val baseLayerReader: S3CollectionLayerReader = S3CollectionLayerReader(s3bucket, "")
 
   /**
     * Given a zoom level & area of interest, transform a list of raster
@@ -68,7 +67,7 @@ trait Utils {
     val parseGeom =
       parseGeometry(_: String, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
 
-    input.polygon.map { str => parseGeom(str).buffer(0).asMultiPolygon.get }
+    input.polygon.map { str => regularizeMultiPolygon(parseGeom(str)) }
       .unionGeometries
       .asMultiPolygon
       .get
@@ -85,7 +84,7 @@ trait Utils {
     val parseGeom =
       parseGeometry(_: String, getCRS(input.polygonCRS), getCRS(input.rasterCRS))
 
-    input.polygon.map { str => parseGeom(str).buffer(0).asMultiPolygon.get }
+    input.polygon.map { str => regularizeMultiPolygon(parseGeom(str)) }
   }
 
   /**
@@ -95,10 +94,7 @@ trait Utils {
     * @return         A MultiPolygon
     */
   def normalizeHuc(huc: HUC): MultiPolygon = {
-    parseGeometry(huc.shape, LatLng, ConusAlbers)
-      .buffer(0)
-      .asMultiPolygon
-      .get
+    regularizeMultiPolygon(parseGeometry(huc.shape, LatLng, ConusAlbers))
   }
 
   /**
@@ -131,10 +127,18 @@ trait Utils {
     * @return           A MultiPolygon
     */
   def parseGeometry(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiPolygon = {
-    geoJson.parseJson.convertTo[Geometry] match {
+    GeoJson.parse[Geometry](geoJson) match {
       case p: Polygon => MultiPolygon(p.reproject(srcCRS, destCRS))
       case mp: MultiPolygon => mp.reproject(srcCRS, destCRS)
       case _ => MultiPolygon()
+    }
+  }
+
+  def regularizeMultiPolygon(mp: MultiPolygon): MultiPolygon = {
+    mp.buffer(0) match {
+      case p: Polygon if p.isEmpty => MultiPolygon()
+      case p: Polygon => MultiPolygon(Seq(p))
+      case mp: MultiPolygon => mp
     }
   }
 
@@ -151,7 +155,7 @@ trait Utils {
     vector: List[String],
     vectorCRS: String,
     rasterCRS: String
-  ): Seq[MultiLine] = {
+  ): Seq[MultiLineString] = {
     val parseVector =
       parseMultiLineString(_: String, getCRS(vectorCRS), getCRS(rasterCRS))
 
@@ -167,18 +171,18 @@ trait Utils {
     * @param   destCRS  The CRS that the outgoing geometry should be in
     * @return           A MultiLine
     */
-  def parseMultiLineString(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLine = {
-    geoJson.parseJson.convertTo[Geometry] match {
-      case l: Line => MultiLine(l.reproject(srcCRS, destCRS))
-      case ml: MultiLine => ml.reproject(srcCRS, destCRS)
-      case _ => MultiLine()
+  def parseMultiLineString(geoJson: String, srcCRS: CRS, destCRS: CRS): MultiLineString = {
+    GeoJson.parse[Geometry](geoJson) match {
+      case l: LineString => MultiLineString(l.reproject(srcCRS, destCRS))
+      case ml: MultiLineString => ml.reproject(srcCRS, destCRS)
+      case _ => MultiLineString()
     }
   }
 
   /**
     * Convenience flavor of the above with defaults
     */
-  def parseMultiLineString(geoJson: String): MultiLine =
+  def parseMultiLineString(geoJson: String): MultiLineString =
     parseMultiLineString(geoJson, LatLng, ConusAlbers)
 
   /**
@@ -189,8 +193,8 @@ trait Utils {
     * @param   aoi    Area of Interest
     * @return         A sequence of MultiLines that intersect with the Area of Interest
     */
-  def cropLinesToAOI(lines: Seq[MultiLine], aoi: MultiPolygon): Seq[MultiLine] = {
-    lines.flatMap(line => (line & aoi).asMultiLine)
+  def cropLinesToAOI(lines: Seq[MultiLineString], aoi: MultiPolygon): Seq[MultiLineString] = {
+    lines.flatMap(line => (line & aoi).asMultiLineString)
   }
 
   /**
@@ -205,7 +209,7 @@ trait Utils {
     case "LatLng" => LatLng
     case "WebMercator" => WebMercator
     case "ConusAlbers" => ConusAlbers
-    case s: String => throw new UnknownCRSException(s)
+    case s: String => throw UnknownCRSException(s)
   }
 
   /**
@@ -243,7 +247,7 @@ trait Utils {
       .where(Intersects(shape))
       .result
 
-  def printConfiguration() = {
+  def printConfiguration(): Unit = {
     val config = ConfigFactory.load()
 
     val host = config.getString("geoprocessing.hostname")

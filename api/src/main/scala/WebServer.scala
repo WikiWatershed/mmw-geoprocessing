@@ -49,16 +49,16 @@ case class MultiInput (
 )
 
 object PostRequestProtocol extends DefaultJsonProtocol {
-  implicit val inputFormat = jsonFormat10(InputData)
-  implicit val postFormat = jsonFormat1(PostRequest)
-  implicit val resultFormat = jsonFormat1(ResultInt)
-  implicit val resultDoubleFormat = jsonFormat1(ResultDouble)
-  implicit val resultSummaryFormat = jsonFormat1(ResultSummary)
-  implicit val resultManyIntFormat = jsonFormat1(ResultManyInt)
+  implicit val inputFormat: RootJsonFormat[InputData] = jsonFormat10(InputData)
+  implicit val postFormat: RootJsonFormat[PostRequest] = jsonFormat1(PostRequest)
+  implicit val resultFormat: RootJsonFormat[ResultInt] = jsonFormat1(ResultInt)
+  implicit val resultDoubleFormat: RootJsonFormat[ResultDouble] = jsonFormat1(ResultDouble)
+  implicit val resultSummaryFormat: RootJsonFormat[ResultSummary] = jsonFormat1(ResultSummary)
+  implicit val resultManyIntFormat: RootJsonFormat[ResultManyInt] = jsonFormat1(ResultManyInt)
 
-  implicit val hucFormat = jsonFormat2(HUC)
-  implicit val operationFormat = jsonFormat5(Operation)
-  implicit val multiInputFormat = jsonFormat3(MultiInput)
+  implicit val hucFormat: RootJsonFormat[HUC] = jsonFormat2(HUC)
+  implicit val operationFormat: RootJsonFormat[Operation] = jsonFormat5(Operation)
+  implicit val multiInputFormat: RootJsonFormat[MultiInput] = jsonFormat3(MultiInput)
 }
 
 object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with ErrorHandler {
@@ -88,7 +88,7 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
                 complete(getRasterSummary(data.input))
               case _ => {
                 val message = s"Unknown operationType: ${data.input.operationType}"
-                throw new InvalidOperationException(message)
+                throw InvalidOperationException(message)
               }
             }
           }

@@ -10,11 +10,11 @@ case class MissingTargetRasterException() extends GeoprocessingException()
 case class MissingVectorCRSException() extends GeoprocessingException()
 case class MissingVectorException() extends GeoprocessingException()
 case class MissingStreamLinesException() extends GeoprocessingException()
-case class InvalidOperationException(val message: String) extends GeoprocessingException()
-case class UnknownCRSException(val crs: String) extends GeoprocessingException()
+case class InvalidOperationException(message: String) extends GeoprocessingException()
+case class UnknownCRSException(crs: String) extends GeoprocessingException()
 
 trait ErrorHandler {
-  val geoprocessingExceptionHandler = ExceptionHandler {
+  val geoprocessingExceptionHandler: ExceptionHandler = ExceptionHandler {
     case InvalidOperationException(e) => {
       println(s"Invalid operation type: $e")
       complete(HttpResponse(BadRequest, entity = e))

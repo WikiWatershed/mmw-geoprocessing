@@ -1,6 +1,6 @@
 package org.wikiwatershed.mmw
 
-import geotrellis.spark._
+import geotrellis.layer._
 
 package object geoprocessing {
   type HucID = String
