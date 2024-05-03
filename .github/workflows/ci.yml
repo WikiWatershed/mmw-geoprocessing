@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  compile:
-    name: compile
+  compile-then-test:
+    name: Compile scala then run tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -23,12 +23,13 @@ jobs:
 
       - name: Install and configure pipenv
         run: |
-          python --version
           PYTHON_PATH=$(which python)
-          pip --version
           pip install pipenv
           pipenv --python $PYTHON_PATH
         
       - name: Run setup
         run: ./scripts/setup
+
+      - name: Run tests
+        run: ./scripts/test
 
