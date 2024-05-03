@@ -20,6 +20,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+    
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Install and configure pipenv
         run: |
@@ -27,9 +32,12 @@ jobs:
           pip install pipenv
           pipenv --python $PYTHON_PATH
         
-      - name: Run setup
+      - name: Run setup script
         run: ./scripts/setup
 
-      - name: Run tests
+      - name: Run server
+        run: ./scripts/server
+
+      - name: Run test script
         run: ./scripts/test
 
