@@ -66,10 +66,9 @@ trait Geoprocessing extends Utils {
 
             case "RasterLinesJoin" =>
               input.streamLines match {
-                case Some(mls) => {
+                case Some(mls) =>
                   val lines = cropLinesToAOI(mls.map(parseMultiLineString), shape)
                   rasterLinesJoin(layers, lines).fmap(_.toDouble)
-                }
                 case None =>
                   throw new MissingStreamLinesException
               }
@@ -309,7 +308,7 @@ trait Geoprocessing extends Utils {
             metadata.layout.tileRows)
 
         Rasterizer.foreachCellByMultiPolygon(multiPolygon, re, opts) { case (col, row) =>
-          val pixelKey: List[Int] = tiles.map(_.get(col, row)).toList
+          val pixelKey: List[Int] = tiles.map(_.get(col, row))
           val pixelValues = pixelGroups.getOrElseUpdate(pixelKey, init())
           val targetLayerData = targetTile.getDouble(col, row)
 
