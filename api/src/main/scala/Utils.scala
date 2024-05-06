@@ -253,7 +253,7 @@ trait Utils {
     val host = config.getString("geoprocessing.hostname")
     val port = config.getString("geoprocessing.port")
     val timeout = config.getString("akka.http.server.request-timeout")
-    val maxlen = config.getString("akka.http.parsing.max-content-length")
+    val maxlen = config.getString("akka.http.server.parsing.max-content-length")
 
     println("Initializing mmw-geoprocessing with these variables:")
     println(s"MMW_GEOPROCESSING_HOST $host")
