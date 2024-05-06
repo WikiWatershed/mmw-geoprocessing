@@ -1,3 +1,8 @@
+## 6.1.0
+
+- Updates max content length configuration for Akka Http 10.5,
+  allowing for HUC-8 requests
+
 ## 6.0.0
 
 - Upgrades the GeoTrellis library to `3.7.0`, the latest at this time
