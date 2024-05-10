@@ -43,7 +43,8 @@ lazy val apiDependencies = Seq(
     geotrellisS3,
     geotrellisGdal,
     geotrellisRaster,
-    geotrellisVector
+    geotrellisVector,
+    stac4s
   )
 )
 
@@ -63,6 +64,7 @@ lazy val commonSettings = Seq(
     "GeoSolutions" at "https://maven.geo-solutions.it/",
     "LT-releases" at "https://repo.locationtech.org/content/groups/releases",
     "OSGeo" at "https://repo.osgeo.org/repository/release/",
+    "jitpack" at "https://jitpack.io",
     "maven2" at "https://repo1.maven.org/maven2"
   ),
 

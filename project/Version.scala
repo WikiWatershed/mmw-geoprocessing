@@ -12,4 +12,5 @@ object Version {
   val scalaLogging  = "3.9.5"
   val scalaParallel = "1.0.4"
   val scalatest     = "3.2.18"
+  val stac4s        = "0.9.0"
 }

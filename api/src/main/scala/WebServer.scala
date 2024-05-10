@@ -8,6 +8,8 @@ import spray.json._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 
+import com.azavea.stac4s.StacCollection
+
 case class InputData(
   operationType: String,
   rasters: List[String],

@@ -15,6 +15,8 @@ object Dependencies {
   val geotrellisRasterTestkit = "org.locationtech.geotrellis" %% "geotrellis-raster-testkit" % Version.geotrellis
   val geotrellisGdal = "org.locationtech.geotrellis" %% "geotrellis-gdal" % Version.geotrellis
 
+  val stac4s = "com.azavea.stac4s" %% "core" % Version.stac4s
+
   val pureconfig = "com.github.pureconfig" %% "pureconfig" % "0.9.1"
   val logging = "com.typesafe.scala-logging" %% "scala-logging" % Version.scalaLogging
   val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest
