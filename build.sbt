@@ -44,7 +44,12 @@ lazy val apiDependencies = Seq(
     geotrellisGdal,
     geotrellisRaster,
     geotrellisVector,
-    stac4s
+    geotrellisStac,
+    kindProjector,
+    stac4s,
+    stac4sClient,
+    sttp,
+    sttpAkkaBackend,
   )
 )
 
@@ -67,6 +72,8 @@ lazy val commonSettings = Seq(
     "jitpack" at "https://jitpack.io",
     "maven2" at "https://repo1.maven.org/maven2"
   ),
+
+  addCompilerPlugin(kindProjector cross CrossVersion.full),
 
   assembly / assemblyShadeRules := {
     val shadePackage = "org.wikiwatershed.shaded"
