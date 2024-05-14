@@ -14,7 +14,6 @@ jobs:
   compile-then-run-tests:
     name: Compile scala, run server, run tests
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v2
 
@@ -38,7 +37,3 @@ jobs:
 
       - name: Run test
         run: ./scripts/citest
-
-      - name: Display output
-        run: cat gh_output.txt
-
