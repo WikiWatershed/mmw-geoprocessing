@@ -39,6 +39,7 @@ jobs:
         run: |
           ./scripts/server >/dev/null 2>&1 &
           SERVER_PID=$!
+          sleep 15
 
       - name: Run test script
         run: curl localhost:8090/pong
