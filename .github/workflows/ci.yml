@@ -36,7 +36,9 @@ jobs:
         run: ./scripts/setup
 
       - name: Run server
-        run: ./scripts/server & SERVER_PID=$!
+        run: |
+          ./scripts/server >/dev/null 2>&1 &
+          SERVER_PID=$!
 
       - name: Run test script
         run: ./scripts/test
