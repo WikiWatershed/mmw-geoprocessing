@@ -47,6 +47,6 @@ jobs:
 
       - name: Stop server
         run: |
-          echo $SERVER_PID
-      #     kill $SERVER_PID
+          echo "Stopping Server by killing $SERVER_PID"
+          kill $SERVER_PID
 
