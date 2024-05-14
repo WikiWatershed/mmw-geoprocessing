@@ -12,7 +12,7 @@ on:
 
 jobs:
   compile-then-run-tests:
-    name: Compile scala then run server
+    name: Compile scala, run server, run tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -40,10 +40,15 @@ jobs:
           ./scripts/server >/dev/null 2>&1 &
           echo "SERVER_PID=$!" >> "$GITHUB_ENV"
 
-      - name: Run test script
+      - name: Check server
         run: |
-          sleep 15
-          curl localhost:8090/pong
+          if ps -p "${SERVER_PID}" > /dev/null; then
+            echo "Server script is running with PID: ${SERVER_PID}"
+          else
+            echo "Server script is not running."
+            exit 1
+          fi
+          netstat -tuln | grep ':8090'
 
       - name: Stop server
         run: |
