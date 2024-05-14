@@ -35,23 +35,6 @@ jobs:
       - name: Run setup script
         run: ./scripts/setup
 
-      - name: Run server
-        run: |
-          ./scripts/server >/dev/null 2>&1 &
-          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
-
-      - name: Check server
-        run: |
-          if ps -p "${SERVER_PID}" > /dev/null; then
-            echo "Server script is running with PID: ${SERVER_PID}"
-          else
-            echo "Server script is not running."
-            exit 1
-          fi
-          netstat -tuln | grep ':8090'
-
-      - name: Stop server
-        run: |
-          echo "Stopping Server by killing $SERVER_PID"
-          kill $SERVER_PID
+      - name: Run test
+        run: ./scripts/citest
 
