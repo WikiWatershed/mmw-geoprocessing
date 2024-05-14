@@ -2,5 +2,5 @@
 set -ex
 
 ./scripts/server >/dev/null 2>&1 &
-sleep 5
+sleep 15
 ./scripts/test
