@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -ex
 
-./scripts/server >/dev/null 2>&1 &
+./scripts/server >gh_output.txt 2>&1 &
 sleep 15
 ./scripts/test
