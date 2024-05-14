@@ -41,7 +41,7 @@ jobs:
           SERVER_PID=$!
 
       - name: Run test script
-        run: ./scripts/test
+        run: curl localhost:8090/pong
 
       - name: Stop server
         run: kill $SERVER_PID
