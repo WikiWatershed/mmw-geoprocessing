@@ -36,8 +36,11 @@ jobs:
         run: ./scripts/setup
 
       - name: Run server
-        run: ./scripts/server
+        run: ./scripts/server & SERVER_PID=$!
 
       - name: Run test script
         run: ./scripts/test
+
+      - name: Stop server
+        run: kill $SERVER_PID
 
