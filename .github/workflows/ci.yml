@@ -40,10 +40,10 @@ jobs:
           ./scripts/server >/dev/null 2>&1 &
           echo "SERVER_PID=$!" >> "$GITHUB_ENV"
 
-      # - name: Run test script
-      #   run: |
-      #     sleep 15
-      #     curl localhost:8090/pong
+      - name: Run test script
+        run: |
+          sleep 15
+          curl localhost:8090/pong
 
       - name: Stop server
         run: |
