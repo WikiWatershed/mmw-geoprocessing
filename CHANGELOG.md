@@ -1,3 +1,7 @@
+## Unreleased
+
+- Add GitHub Actions workflow
+
 ## 6.1.0
 
 - Updates max content length configuration for Akka Http 10.5,

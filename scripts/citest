@@ -2,6 +2,7 @@
 set -x
 
 ./scripts/server >gh_output.txt 2>&1 &
+# Wait for server to start up before testing
 sleep 15
 ./scripts/test
 
