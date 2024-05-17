@@ -16,7 +16,7 @@ import scala.concurrent._
 trait Stac extends Utils {
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  def getStacInfo(shape: SimpleShape): Future[String] = {
+  def getStacGroupedCount(shape: SimpleShape): Future[Map[String, Int]] = {
     val uri = uri"https://api.impactobservatory.com/stac-aws"
 
     val aoi = parseGeometry(shape.shape, LatLng, LatLng)
@@ -50,6 +50,15 @@ trait Stac extends Utils {
       .map { rs => rs.read(aoi.reproject(LatLng, rs.crs).extent) }
       .value
       .map { _.flatten }
-      .map { _.map { _.tile.size } mkString "," }
+      .map {
+        case Some(raster) => raster
+          .tile
+          .band(0)
+          .histogram
+          .binCounts
+          .map { case (value, count) => (s"List(${value})", count.toInt) }
+          .toMap
+        case None => Map.empty
+      }
   }
 }

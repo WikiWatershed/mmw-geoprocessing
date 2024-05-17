@@ -104,7 +104,7 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
         } ~
         path("stac") {
           entity(as[SimpleShape]) { shape =>
-            complete(getStacInfo(shape))
+            complete(getStacGroupedCount(shape))
           }
         }
       }
