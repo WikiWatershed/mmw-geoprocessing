@@ -40,6 +40,7 @@ trait Stac extends Utils {
     val backend = AkkaHttpBackend()
     val client = SttpStacClient(backend, uri)
 
+    // Create a Mosaic Raster Source from the STAC Items
     val source = client
       .search(searchFilters)
       .take(limit)
@@ -48,12 +49,14 @@ trait Stac extends Utils {
 
     source
       .nested
+      // Clip the Raster Source to the AoI's extent
       .map { rs => rs.read(reprojectedAoI.extent) }
       .value
       .map { _.flatten }
       .map {
         case Some(raster) => raster
           .tile
+          // Mask to the AoI
           .mask(raster.extent, reprojectedAoI)
           .band(0)
           .histogram
