@@ -33,7 +33,7 @@ trait Stac extends Utils {
     val limit = 100
     val assetName = "supercell".r
     val withGDAL = false
-    val defaultCRS = WebMercator
+    val targetCRS = ConusAlbers
     val parallelMosaicEnable = false
 
     val backend = AkkaHttpBackend()
@@ -43,7 +43,7 @@ trait Stac extends Utils {
       .search(searchFilters)
       .take(limit)
       .compileToFutureList
-      .map(MosaicRasterSource.fromStacItems(collectionName, _, assetName, defaultCRS, withGDAL, parallelMosaicEnable))
+      .map(MosaicRasterSource.fromStacItems(collectionName, _, assetName, targetCRS, withGDAL, parallelMosaicEnable))
 
     source
       .nested

@@ -70,7 +70,7 @@ package object geoprocessing {
     def fromStacItems(collectionName: SourceName,
                       items: List[StacItem],
                       assetName: Regex,
-                      defaultCRS: CRS,
+                      targetCRS: CRS,
                       withGDAL: Boolean,
                       parallelMosaicEnabled: Boolean
                      ): Option[RasterSource] = {
@@ -78,15 +78,14 @@ package object geoprocessing {
       sources match {
         case head :: Nil => head.some
         case head :: tail =>
-          val commonCrs = if (sources.flatMap(_.asset.crs).distinct.size == 1) head.crs else defaultCRS
-          val reprojectedSources = NonEmptyList.of(head, tail: _*).map(_.reproject(commonCrs))
+          val reprojectedSources = NonEmptyList.of(head, tail: _*).map(_.reproject(targetCRS))
           val attributes = reprojectedSources.toList.attributesByName
 
           val mosaicRasterSource =
             if (parallelMosaicEnabled)
-              MosaicRasterSourceIO.instance(reprojectedSources, commonCrs, collectionName, attributes)(IORuntime.global)
+              MosaicRasterSourceIO.instance(reprojectedSources, targetCRS, collectionName, attributes)(IORuntime.global)
             else
-              MosaicRasterSource.instance(reprojectedSources, commonCrs, collectionName, attributes)
+              MosaicRasterSource.instance(reprojectedSources, targetCRS, collectionName, attributes)
 
           mosaicRasterSource.some
         case _ => None
