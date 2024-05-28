@@ -20,6 +20,7 @@ trait Stac extends Utils {
     val uri = uri"https://api.impactobservatory.com/stac-aws"
 
     val aoi = parseGeometry(shape.shape, LatLng, LatLng)
+    val reprojectedAoI = aoi.reproject(LatLng, ConusAlbers)
 
     val collectionName = StringName("io-10m-annual-lulc")
     val searchFilters = SearchFilters(
@@ -47,12 +48,13 @@ trait Stac extends Utils {
 
     source
       .nested
-      .map { rs => rs.read(aoi.reproject(LatLng, rs.crs).extent) }
+      .map { rs => rs.read(reprojectedAoI.extent) }
       .value
       .map { _.flatten }
       .map {
         case Some(raster) => raster
           .tile
+          .mask(raster.extent, reprojectedAoI)
           .band(0)
           .histogram
           .binCounts
