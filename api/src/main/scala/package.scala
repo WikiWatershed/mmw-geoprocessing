@@ -24,6 +24,8 @@ package object geoprocessing {
   type RasterLayer = TileLayerCollection[SpatialKey]
   type GeoJSONString = String
 
+  // The following is taken from https://github.com/geotrellis/geotrellis-server/tree/feature/stac-example-simple/stac-simple-example/src/main/scala/geotrellis/example by @pomadchin
+
   implicit class AssetsMapOps(private val assets: Map[String, StacAsset]) extends AnyVal {
     def select(selector: Regex): Option[StacAsset] = assets.find { case (k, _) => selector.findFirstIn(k).nonEmpty }.map(_._2)
   }
