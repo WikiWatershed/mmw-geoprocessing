@@ -37,7 +37,7 @@ trait Stac extends Utils {
     val limit = 100
     val assetName = "supercell".r
     val withGDAL = false
-    val parallelMosaicEnable = false
+    val parallelMosaicEnable = true
 
     val backend = AkkaHttpBackend()
     val client = SttpStacClient(backend, uri)
