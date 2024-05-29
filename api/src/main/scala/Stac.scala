@@ -62,7 +62,7 @@ trait Stac extends Utils {
           .mask(reprojectedAoI.extent, reprojectedAoI)
           .band(0)
           .histogram
-          .binCounts
+          .binCounts()
           .map { case (value, count) => (s"List(${value})", count.toInt) }
           .toMap
         case None => Map.empty
