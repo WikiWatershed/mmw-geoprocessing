@@ -16,25 +16,27 @@ import scala.concurrent._
 trait Stac extends Utils {
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  def getStacGroupedCount(shape: SimpleShape): Future[Map[String, Int]] = {
-    val uri = uri"https://api.impactobservatory.com/stac-aws"
+  def getStacGroupedCount(input: StacInput): Future[Map[String, Int]] = {
+    val uri = uri"${input.stacUri}"
 
-    val aoi = parseGeometry(shape.shape, LatLng, LatLng)
-    val reprojectedAoI = aoi.reproject(LatLng, ConusAlbers)
+    // TODO Calculate this based on where the AoI is
+    val targetCRS = ConusAlbers
 
-    val collectionName = StringName("io-10m-annual-lulc")
+    val aoi = parseGeometry(input.shape, LatLng, LatLng)
+    val reprojectedAoI = aoi.reproject(LatLng, targetCRS)
+
+    val collectionName = StringName(input.stacCollection)
     val searchFilters = SearchFilters(
       collections=List(collectionName.value),
       intersects=Some(aoi),
       datetime=Some(
         TemporalExtent(
-          Instant.parse("2023-01-02T00:00:00Z"),
-          Instant.parse("2024-01-01T00:00:00Z")))
+          Instant.parse(s"${input.year}-01-02T00:00:00Z"),
+          Instant.parse(s"${input.year + 1}-01-01T00:00:00Z")))
     )
     val limit = 100
     val assetName = "supercell".r
     val withGDAL = false
-    val targetCRS = ConusAlbers
     val parallelMosaicEnable = false
 
     val backend = AkkaHttpBackend()
@@ -57,7 +59,7 @@ trait Stac extends Utils {
         case Some(raster) => raster
           .tile
           // Mask to the AoI
-          .mask(raster.extent, reprojectedAoI)
+          .mask(reprojectedAoI.extent, reprojectedAoI)
           .band(0)
           .histogram
           .binCounts

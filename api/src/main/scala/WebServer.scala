@@ -48,7 +48,12 @@ case class MultiInput (
   operations: List[Operation]
 )
 
-case class SimpleShape (shape: GeoJSONString)
+case class StacInput (
+  shape: GeoJSONString,
+  stacUri: String,
+  stacCollection: String,
+  year: Int,
+)
 
 object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val inputFormat: RootJsonFormat[InputData] = jsonFormat10(InputData)
@@ -62,7 +67,7 @@ object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val operationFormat: RootJsonFormat[Operation] = jsonFormat5(Operation)
   implicit val multiInputFormat: RootJsonFormat[MultiInput] = jsonFormat3(MultiInput)
 
-  implicit val simpleShapeFormat: RootJsonFormat[SimpleShape] = jsonFormat1(SimpleShape)
+  implicit val stacInputFormat: RootJsonFormat[StacInput] = jsonFormat4(StacInput)
 }
 
 object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with Stac with ErrorHandler {
@@ -103,8 +108,8 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
           }
         } ~
         path("stac") {
-          entity(as[SimpleShape]) { shape =>
-            complete(getStacGroupedCount(shape))
+          entity(as[StacInput]) { input =>
+            complete(getStacGroupedCount(input))
           }
         }
       }
