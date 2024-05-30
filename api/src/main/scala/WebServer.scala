@@ -48,6 +48,13 @@ case class MultiInput (
   operations: List[Operation]
 )
 
+case class StacInput (
+  shape: GeoJSONString,
+  stacUri: String,
+  stacCollection: String,
+  year: Int,
+)
+
 object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val inputFormat: RootJsonFormat[InputData] = jsonFormat10(InputData)
   implicit val postFormat: RootJsonFormat[PostRequest] = jsonFormat1(PostRequest)
@@ -59,9 +66,11 @@ object PostRequestProtocol extends DefaultJsonProtocol {
   implicit val hucFormat: RootJsonFormat[HUC] = jsonFormat2(HUC)
   implicit val operationFormat: RootJsonFormat[Operation] = jsonFormat5(Operation)
   implicit val multiInputFormat: RootJsonFormat[MultiInput] = jsonFormat3(MultiInput)
+
+  implicit val stacInputFormat: RootJsonFormat[StacInput] = jsonFormat4(StacInput)
 }
 
-object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with ErrorHandler {
+object WebServer extends HttpApp with App with LazyLogging with Geoprocessing with Stac with ErrorHandler {
   import PostRequestProtocol._
 
   @throws(classOf[InvalidOperationException])
@@ -96,6 +105,11 @@ object WebServer extends HttpApp with App with LazyLogging with Geoprocessing wi
         path("multi") {
           entity(as[MultiInput]) { input =>
             complete(getMultiOperations(input))
+          }
+        } ~
+        path("stac") {
+          entity(as[StacInput]) { input =>
+            complete(getStacGroupedCount(input))
           }
         }
       }
